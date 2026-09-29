@@ -206,7 +206,7 @@ function drawWavyTextCentered(ctx, text, centerX, centerY, currentTime, color) {
 let score = 0;
 let lives = 3;
 let rowsRemaining = 3;
-let gameState = "START_SCREEN"; // Start with the Splash Screen
+let gameState = "START_SCREEN";
 let gameOverY = -120;
 let ballTrail = [];
 
@@ -298,33 +298,52 @@ dctx.strokeStyle = "rgb(80, 50, 20)";
 dctx.lineWidth = 3;
 dctx.strokeRect(0, 0, blockW, blockH);
 
+function getRandomCritter(row) {
+  if (!loadedCritters || loadedCritters.length === 0) return null;
+  const weights = loadedCritters.map(c => {
+    if (c.name === "basic-blueberry.png") {
+      return row < 2 ? 70 : (row < 4 ? 20 : 10);
+    }
+    return 10;
+  });
+  const totalWeight = weights.reduce((a, b) => a + b, 0);
+  let rand = Math.random() * totalWeight;
+  for (let i = 0; i < loadedCritters.length; i++) {
+    if (rand < weights[i]) return loadedCritters[i];
+    rand -= weights[i];
+  }
+  return loadedCritters[0];
+}
+
+// Fixed 19% cap: 18 special blocks chosen from the 96 total slots
 function buildLevel() {
+  const totalSlots = 6 * 16; // 96
+  const targetSpecials = Math.round(totalSlots * 0.19); // Exactly 18 blocks
+  
+  // Pick 18 unique indices
+  const specialIndices = new Set();
+  while (specialIndices.size < targetSpecials) {
+    specialIndices.add(Math.floor(Math.random() * totalSlots));
+  }
+
   const list = [];
+  let index = 0;
   for (let row = 0; row < 6; row++) {
     for (let col = 0; col < 16; col++) {
       const rect = { x: col * (blockW + 5) + 24, y: row * (blockH + 5) + 50, w: blockW, h: blockH };
-      if (Math.random() < 0.35 && loadedCritters.length > 0) {
-        let critter;
-        const weights = loadedCritters.map(c => {
-          if (c.name === "basic-blueberry.png") {
-            return row < 2 ? 70 : (row < 4 ? 20 : 10);
-          }
-          return 10;
-        });
-        const totalWeight = weights.reduce((a, b) => a + b, 0);
-        let rand = Math.random() * totalWeight;
-        for (let i = 0; i < loadedCritters.length; i++) {
-          if (rand < weights[i]) {
-            critter = loadedCritters[i];
-            break;
-          }
-          rand -= weights[i];
+      const isSpecial = specialIndices.has(index);
+      
+      if (isSpecial) {
+        const critter = getRandomCritter(row);
+        if (critter) {
+          list.push({ rect, image: critter.img, is_powerup: true, type: critter.name });
+        } else {
+          list.push({ rect, image: genericBlock, is_powerup: false, type: 'generic' });
         }
-        critter = critter || loadedCritters[0];
-        list.push({ rect, image: critter.img, is_powerup: true, type: critter.name });
       } else {
         list.push({ rect, image: genericBlock, is_powerup: false, type: 'generic' });
       }
+      index++;
     }
   }
   return list;
@@ -522,7 +541,6 @@ canvas.addEventListener("mousemove", e => {
 canvas.addEventListener("mousedown", e => {
   if (e.button === 0) {
     if (gameState === "START_SCREEN") {
-      // Start button hitbox
       if (mouseX >= 300 && mouseX <= 500 && mouseY >= 115 && mouseY <= 170) {
         startNewGame();
       }
@@ -550,22 +568,21 @@ function update(currentTime) {
       });
 
       if (gameState === "PLAYING") {
+        // Capped at 19% per 16-block row: exactly 3 special blocks
+        const rowSpecialCols = new Set();
+        while (rowSpecialCols.size < 3) {
+          rowSpecialCols.add(Math.floor(Math.random() * 16));
+        }
+
         for (let col = 0; col < 16; col++) {
           const rect = { x: col * (blockW + 5) + 24, y: 50, w: blockW, h: blockH };
-          if (Math.random() < 0.35 && loadedCritters.length > 0) {
-            let critter;
-            const weights = loadedCritters.map(c => c.name === "basic-blueberry.png" ? 70 : 10);
-            const totalWeight = weights.reduce((a, b) => a + b, 0);
-            let rand = Math.random() * totalWeight;
-            for (let i = 0; i < loadedCritters.length; i++) {
-              if (rand < weights[i]) {
-                critter = loadedCritters[i];
-                break;
-              }
-              rand -= weights[i];
+          if (rowSpecialCols.has(col)) {
+            const critter = getRandomCritter(0);
+            if (critter) {
+              blocks.push({ rect, image: critter.img, is_powerup: true, type: critter.name });
+            } else {
+              blocks.push({ rect, image: genericBlock, is_powerup: false, type: 'generic' });
             }
-            critter = critter || loadedCritters[0];
-            blocks.push({ rect, image: critter.img, is_powerup: true, type: critter.name });
           } else {
             blocks.push({ rect, image: genericBlock, is_powerup: false, type: 'generic' });
           }
@@ -838,12 +855,10 @@ function update(currentTime) {
 
 // --- RENDER FUNCTION ---
 function render(currentTime) {
-  // 1. SPLASH / START SCREEN
   if (gameState === "START_SCREEN") {
     ctx.fillStyle = "rgb(20, 22, 32)";
     ctx.fillRect(0, 0, 800, 600);
 
-    // Decorative double border
     const boxX = 35, boxY = 20, boxW = 730, boxH = 560;
     ctx.fillStyle = "rgb(28, 32, 48)";
     ctx.fillRect(boxX, boxY, boxW, boxH);
@@ -856,7 +871,6 @@ function render(currentTime) {
     ctx.lineWidth = 2;
     ctx.strokeRect(boxX + 4, boxY + 4, boxW - 8, boxH - 8);
 
-    // Main Title
     ctx.fillStyle = "rgb(255, 205, 30)";
     ctx.font = "bold 44px Impact";
     ctx.textAlign = "center";
@@ -866,7 +880,6 @@ function render(currentTime) {
     ctx.font = "16px Arial";
     ctx.fillText("An Arcade Brick-Breaker with Wild Power-ups & Hazards", 400, 96);
 
-    // NEW GAME Button
     const isBtnHover = (mouseX >= 300 && mouseX <= 500 && mouseY >= 115 && mouseY <= 170);
     ctx.fillStyle = isBtnHover ? "rgb(150, 255, 150)" : "rgb(90, 210, 90)";
     roundRect(ctx, 300, 115, 200, 55, 8, true, false);
@@ -880,7 +893,6 @@ function render(currentTime) {
     ctx.textAlign = "center";
     ctx.fillText("NEW GAME", 400, 153);
 
-    // Rules / How to play Banner
     ctx.fillStyle = "rgba(15, 18, 28, 0.75)";
     roundRect(ctx, 55, 185, 690, 85, 6, true, false);
     ctx.strokeStyle = "rgb(60, 95, 140)";
@@ -898,13 +910,11 @@ function render(currentTime) {
     ctx.fillText("• Destroy blocks before new rows drop! If blocks cross the paddle line, it's Game Over.", 70, 248);
     ctx.fillText("• Clear all rows to reset the board with faster drops ('A Little Harder...').", 70, 265);
 
-    // Icon & Status Guide Section
     ctx.fillStyle = "rgb(120, 200, 255)";
     ctx.font = "bold 17px Arial";
     ctx.textAlign = "center";
     ctx.fillText("CRITTER POWER-UPS & HAZARD GUIDE", 400, 298);
 
-    // 2-Column Icon Grid
     const keysArr = Object.keys(iconDescriptions);
     const colWidth = 345;
     const startY = 320;
@@ -924,7 +934,6 @@ function render(currentTime) {
       ctx.font = "13px Arial";
       ctx.textAlign = "left";
 
-      // Wrap text in description
       const desc = iconDescriptions[key];
       const maxW = 285;
       const words = desc.split(" ");
@@ -947,7 +956,6 @@ function render(currentTime) {
     return;
   }
 
-  // 2. IN-GAME / PLAYING / PAUSED RENDERING
   let shakeX = 0, shakeY = 0;
   if (currentTime < shakeTimer) {
     shakeX = Math.floor(Math.random() * 17) - 8;
@@ -1123,7 +1131,6 @@ function render(currentTime) {
     ctx.textAlign = "center";
     ctx.fillText("SHIFT: Sprint | SPACE: Pause | F: Fullscreen", 400, 580);
 
-    // PAUSE MENU
     if (gameState === "PAUSED") {
       ctx.fillStyle = "rgba(15, 15, 25, 0.9)";
       ctx.fillRect(0, 0, 800, 600);
