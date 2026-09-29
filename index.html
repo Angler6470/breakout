@@ -34,8 +34,9 @@
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
-// --- SYNTHESIZED SOUND VIA WEB AUDIO API ---
+// --- SYNTHESIZED SOUNDS VIA WEB AUDIO API ---
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
 function playBounceSound() {
   if (audioCtx.state === 'suspended') {
     audioCtx.resume();
@@ -58,6 +59,36 @@ function playBounceSound() {
   osc.stop(now + 0.1);
 }
 
+// Power-up / Special Block Impact Sound (Bright 2-tone chime)
+function playPowerupSound() {
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+  const now = audioCtx.currentTime;
+
+  const osc1 = audioCtx.createOscillator();
+  const gain1 = audioCtx.createGain();
+  osc1.type = "triangle";
+  osc1.frequency.setValueAtTime(587.33, now);
+  gain1.gain.setValueAtTime(0.35, now);
+  gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+  osc1.connect(gain1);
+  gain1.connect(audioCtx.destination);
+  osc1.start(now);
+  osc1.stop(now + 0.12);
+
+  const osc2 = audioCtx.createOscillator();
+  const gain2 = audioCtx.createGain();
+  osc2.type = "triangle";
+  osc2.frequency.setValueAtTime(880, now + 0.08);
+  gain2.gain.setValueAtTime(0.35, now + 0.08);
+  gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+  osc2.connect(gain2);
+  gain2.connect(audioCtx.destination);
+  osc2.start(now + 0.08);
+  osc2.stop(now + 0.28);
+}
+
 // --- ASSET LOADER ---
 const critterFiles = [
   "aggressive-shark.png", "armored-walrus.png", "bandit-raccoon.png",
@@ -71,7 +102,6 @@ critterFiles.forEach(fileName => {
   const img = new Image();
   img.src = `images/${fileName}`;
   img.onload = () => {
-    // Generate square center-cropped offscreen canvas
     const cropSize = Math.min(img.width, img.height);
     const left = Math.floor((img.width - cropSize) / 2);
     const offscreen = document.createElement("canvas");
@@ -119,7 +149,6 @@ Object.keys(iconFilenames).forEach(key => {
     tile.height = 32;
     const tctx = tile.getContext("2d");
 
-    // Draw whitish rounded badge tile
     tctx.fillStyle = "rgb(230, 235, 245)";
     roundRect(tctx, 0, 0, 32, 32, 4, true, false);
     tctx.strokeStyle = "rgb(160, 180, 210)";
@@ -154,6 +183,25 @@ function roundRect(ctx, x, y, width, height, radius, fill, stroke) {
   ctx.closePath();
   if (fill) ctx.fill();
   if (stroke) ctx.stroke();
+}
+
+// Method 2: Per-letter Wavy Ripple Text
+function drawWavyTextCentered(ctx, text, centerX, centerY, currentTime, color) {
+  ctx.save();
+  ctx.font = "bold 26px Arial";
+  ctx.fillStyle = color;
+  ctx.textAlign = "left";
+
+  const totalWidth = ctx.measureText(text).width;
+  let currentX = centerX - (totalWidth / 2);
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    const offsetY = Math.sin((currentTime / 140) + (i * 0.45)) * 6;
+    ctx.fillText(char, currentX, centerY + offsetY);
+    currentX += ctx.measureText(char).width;
+  }
+  ctx.restore();
 }
 
 // --- GAME STATE & VARIABLES ---
@@ -198,7 +246,6 @@ const ball = { x: 390, y: 300, w: ballSize, h: ballSize, dx: 5, dy: -5, angle: 0
 const keys = {};
 let mouseX = 0, mouseY = 0;
 
-// Offscreen Ball Canvas
 function createBallCanvas(size) {
   const bSurf = document.createElement("canvas");
   bSurf.width = size;
@@ -225,7 +272,6 @@ function createBallCanvas(size) {
 }
 let ballSurface = createBallCanvas(ballSize);
 
-// Generic block canvas
 const genericBlock = document.createElement("canvas");
 genericBlock.width = blockW;
 genericBlock.height = blockH;
@@ -236,7 +282,6 @@ gctx.strokeStyle = "rgb(50, 100, 150)";
 gctx.lineWidth = 3;
 gctx.strokeRect(0, 0, blockW, blockH);
 
-// Dirt block canvas
 const dirtSurface = document.createElement("canvas");
 dirtSurface.width = blockW;
 dirtSurface.height = blockH;
@@ -282,6 +327,8 @@ function buildLevel() {
 blocks = buildLevel();
 
 function processPowerup(blockType, currentTime, blockRect) {
+  playPowerupSound();
+
   if (blockType === "basic-blueberry.png") {
     lives += 1;
   } else if (blockType === "armored-walrus.png") {
@@ -364,7 +411,6 @@ function processPowerup(blockType, currentTime, blockRect) {
 function checkLevelClear(currentTime) {
   if (blocks.length === 0) {
     if (rowsRemaining <= 0) {
-      // Shorter row interval each loop, down to a 5-second minimum
       dropInterval = Math.max(5000, dropInterval - 2000);
       harderMsgTimer = currentTime + 3000;
     }
@@ -472,7 +518,6 @@ canvas.addEventListener("mousedown", e => {
 
 // --- MAIN LOOP ---
 function update(currentTime) {
-  // Grid Drop Event
   if (currentTime - lastDropTime >= dropInterval && gameState === "PLAYING") {
     lastDropTime = currentTime;
     if (rowsRemaining > 0) {
@@ -551,7 +596,6 @@ function update(currentTime) {
       dirtBlocks = [];
     }
 
-    // Paddle Hitbox Calculation
     const isWalrusActive = currentTime < walrusTimer;
     const isStegoActive = currentTime < stegoTimer;
     const paddleHitboxes = [];
@@ -566,7 +610,6 @@ function update(currentTime) {
       paddleHitboxes.push(paddle);
     }
 
-    // Missile Physics
     activeMissiles = activeMissiles.filter(m => {
       m.y -= 12;
       if (m.y + m.h < 0) return false;
@@ -581,6 +624,7 @@ function update(currentTime) {
           if (hit.is_powerup) {
             processPowerup(hit.type, currentTime, hit.rect);
           } else {
+            playBounceSound();
             score += 10;
           }
           checkLevelClear(currentTime);
@@ -590,7 +634,6 @@ function update(currentTime) {
       return true;
     });
 
-    // Main Ball Physics
     ballTrail.push({ x: ball.x + ball.w / 2, y: ball.y + ball.h / 2 });
     if (ballTrail.length > 6) ballTrail.shift();
 
@@ -685,11 +728,11 @@ function update(currentTime) {
     for (let i = 0; i < blocks.length; i++) {
       if (rectsIntersect(ball, blocks[i].rect)) {
         ball.dy *= -1;
-        playBounceSound();
         const hit = blocks.splice(i, 1)[0];
         if (hit.is_powerup) {
           processPowerup(hit.type, currentTime, hit.rect);
         } else {
+          playBounceSound();
           score += 10;
         }
         checkLevelClear(currentTime);
@@ -697,7 +740,6 @@ function update(currentTime) {
       }
     }
 
-    // Extra Balls Physics
     extraBalls = extraBalls.filter(eBall => {
       eBall.trail.push({ x: eBall.rect.x + eBall.rect.w / 2, y: eBall.rect.y + eBall.rect.h / 2 });
       if (eBall.trail.length > 6) eBall.trail.shift();
@@ -759,11 +801,11 @@ function update(currentTime) {
       for (let i = 0; i < blocks.length; i++) {
         if (rectsIntersect(eBall.rect, blocks[i].rect)) {
           eBall.dy *= -1;
-          playBounceSound();
           const hit = blocks.splice(i, 1)[0];
           if (hit.is_powerup) {
             processPowerup(hit.type, currentTime, hit.rect);
           } else {
+            playBounceSound();
             score += 10;
           }
           checkLevelClear(currentTime);
@@ -790,7 +832,6 @@ function render(currentTime) {
   ctx.fillRect(0, 0, 800, 600);
 
   if (gameState === "PLAYING" || gameState === "PAUSED") {
-    // Paddle
     ctx.fillStyle = "rgb(200, 200, 200)";
     if (currentTime < stegoTimer) {
       ctx.fillRect(paddle.x, paddle.y, 16, 15);
@@ -800,7 +841,6 @@ function render(currentTime) {
       ctx.fillRect(paddle.x, paddle.y, paddle.w, paddle.h);
     }
 
-    // Walrus Shield
     if (currentTime < walrusTimer) {
       const pulse = (175 + 80 * Math.sin(currentTime / 100.0)) / 255;
       ctx.save();
@@ -811,19 +851,15 @@ function render(currentTime) {
       ctx.restore();
     }
 
-    // Missiles
     ctx.fillStyle = "rgb(255, 100, 50)";
     activeMissiles.forEach(m => ctx.fillRect(m.x, m.y, m.w, m.h));
 
-    // Blinking effect before drop
     const timeSinceDrop = currentTime - lastDropTime;
     const isBlinking = timeSinceDrop > (dropInterval - 3000) && rowsRemaining > 0 && gameState === "PLAYING";
     const blinkAlpha = isBlinking ? Math.abs(Math.sin(currentTime / 100.0)) * 0.4 : 0;
 
-    // Dirt Blocks
     dirtBlocks.forEach(d => ctx.drawImage(dirtSurface, d.x, d.y));
 
-    // Blocks
     blocks.forEach(b => {
       ctx.drawImage(b.image, b.rect.x, b.rect.y);
       if (isBlinking) {
@@ -832,7 +868,6 @@ function render(currentTime) {
       }
     });
 
-    // Main Ball Trail
     ballTrail.forEach((pos, i) => {
       const radius = (ballSize / 2) * (i / ballTrail.length);
       if (radius > 0) {
@@ -843,7 +878,6 @@ function render(currentTime) {
       }
     });
 
-    // Main Ball
     if (currentTime >= trexTimer) {
       ctx.save();
       ctx.translate(ball.x + ball.w / 2, ball.y + ball.h / 2);
@@ -852,7 +886,6 @@ function render(currentTime) {
       ctx.restore();
     }
 
-    // Extra Balls
     extraBalls.forEach(eBall => {
       eBall.trail.forEach((pos, i) => {
         const radius = (ballSize / 2) * (i / eBall.trail.length);
@@ -872,7 +905,6 @@ function render(currentTime) {
       }
     });
 
-    // UI Texts
     ctx.fillStyle = "rgb(255, 255, 255)";
     ctx.font = "bold 26px Arial";
     ctx.textAlign = "left";
@@ -886,7 +918,6 @@ function render(currentTime) {
     ctx.textAlign = "center";
     ctx.fillText(`New Rows Remaining: ${rowsRemaining}`, 400, 36);
 
-    // Active Status Icons (HUD stack)
     const currentActive = [];
     if (currentTime < walrusTimer) currentActive.push('walrus');
     if (currentTime < tomatoTimer) currentActive.push('tomato');
@@ -938,22 +969,29 @@ function render(currentTime) {
     });
 
     // Warning & Event text overlays
-    const warnings = [];
-    if (currentTime < harderMsgTimer) warnings.push({ text: "A Little Harder...", color: "rgb(255, 80, 80)" });
-    if (currentTime < elephantMsgTimer) warnings.push({ text: "THE HERD! (MULTI-BALL)", color: "rgb(50, 255, 255)" });
-    if (currentTime < pumpkinTimer) warnings.push({ text: "SEISMIC PADDLE!", color: "rgb(255, 140, 0)" });
-    if (currentTime < raccoonTimer) warnings.push({ text: "CONTROLS INVERTED!", color: "rgb(255, 50, 50)" });
-    if (currentTime < trexTimer) warnings.push({ text: "BALL CLOAKED!", color: "rgb(100, 255, 100)" });
-    if (currentTime < triceratopsTimer) warnings.push({ text: "STAMPEDE DRIFT!", color: "rgb(255, 150, 0)" });
+    let warningIndex = 0;
+
+    // Method 2 wavy ripple applied specifically to "A Little Harder..."
+    if (currentTime < harderMsgTimer) {
+      drawWavyTextCentered(ctx, "A Little Harder...", 400, 90 + warningIndex * 36, currentTime, "rgb(255, 80, 80)");
+      warningIndex++;
+    }
+
+    const standardWarnings = [];
+    if (currentTime < elephantMsgTimer) standardWarnings.push({ text: "THE HERD! (MULTI-BALL)", color: "rgb(50, 255, 255)" });
+    if (currentTime < pumpkinTimer) standardWarnings.push({ text: "SEISMIC PADDLE!", color: "rgb(255, 140, 0)" });
+    if (currentTime < raccoonTimer) standardWarnings.push({ text: "CONTROLS INVERTED!", color: "rgb(255, 50, 50)" });
+    if (currentTime < trexTimer) standardWarnings.push({ text: "BALL CLOAKED!", color: "rgb(100, 255, 100)" });
+    if (currentTime < triceratopsTimer) standardWarnings.push({ text: "STAMPEDE DRIFT!", color: "rgb(255, 150, 0)" });
 
     ctx.font = "bold 24px Arial";
     ctx.textAlign = "center";
-    warnings.forEach((warn, idx) => {
+    standardWarnings.forEach(warn => {
       ctx.fillStyle = warn.color;
-      ctx.fillText(warn.text, 400, 90 + idx * 36);
+      ctx.fillText(warn.text, 400, 90 + warningIndex * 36);
+      warningIndex++;
     });
 
-    // Control hint
     ctx.fillStyle = "rgb(150, 150, 150)";
     ctx.font = "16px Arial";
     ctx.textAlign = "center";
