@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Corner Critters Breakout</title>
+  <title>Corner Critters: 'Breakout'</title>
   <style>
     * {
       box-sizing: border-box;
@@ -59,7 +59,6 @@ function playBounceSound() {
   osc.stop(now + 0.1);
 }
 
-// Power-up / Special Block Impact Sound (Bright 2-tone chime)
 function playPowerupSound() {
   if (audioCtx.state === 'suspended') {
     audioCtx.resume();
@@ -185,7 +184,6 @@ function roundRect(ctx, x, y, width, height, radius, fill, stroke) {
   if (stroke) ctx.stroke();
 }
 
-// Method 2: Per-letter Wavy Ripple Text
 function drawWavyTextCentered(ctx, text, centerX, centerY, currentTime, color) {
   ctx.save();
   ctx.font = "bold 26px Arial";
@@ -208,7 +206,7 @@ function drawWavyTextCentered(ctx, text, centerX, centerY, currentTime, color) {
 let score = 0;
 let lives = 3;
 let rowsRemaining = 3;
-let gameState = "PLAYING";
+let gameState = "START_SCREEN"; // Start with the Splash Screen
 let gameOverY = -120;
 let ballTrail = [];
 
@@ -241,7 +239,6 @@ const paddle = { x: 350, y: 550, w: 100, h: 15 };
 const basePaddleSpeed = 7;
 
 let ballSize = 20;
-// Spawns safely right above the paddle
 const ball = { 
   x: paddle.x + paddle.w / 2 - ballSize / 2, 
   y: paddle.y - ballSize - 5, 
@@ -306,7 +303,6 @@ function buildLevel() {
   for (let row = 0; row < 6; row++) {
     for (let col = 0; col < 16; col++) {
       const rect = { x: col * (blockW + 5) + 24, y: row * (blockH + 5) + 50, w: blockW, h: blockH };
-      // Increased spawn chance to 35%
       if (Math.random() < 0.35 && loadedCritters.length > 0) {
         let critter;
         const weights = loadedCritters.map(c => {
@@ -335,6 +331,40 @@ function buildLevel() {
 }
 
 blocks = buildLevel();
+
+function startNewGame() {
+  lives = 3;
+  score = 0;
+  rowsRemaining = 3;
+  dropInterval = 15000;
+  blocks = buildLevel();
+  ballSize = 20;
+  ball.w = ballSize;
+  ball.h = ballSize;
+  ballSurface = createBallCanvas(ballSize);
+  paddle.x = 350;
+  ball.x = paddle.x + paddle.w / 2 - ballSize / 2;
+  ball.y = paddle.y - ballSize - 5;
+  ball.dx = 5;
+  ball.dy = -5;
+  ballTrail = [];
+  walrusTimer = 0;
+  tomatoTimer = 0;
+  raccoonTimer = 0;
+  bulldogTimer = 0;
+  stegoTimer = 0;
+  trexTimer = 0;
+  triceratopsTimer = 0;
+  pumpkinTimer = 0;
+  harderMsgTimer = 0;
+  sharkMissiles = 0;
+  activeMissiles = [];
+  dirtBlocks = [];
+  extraBalls = [];
+  Object.keys(iconAnimState).forEach(k => iconAnimState[k].wasActive = false);
+  lastDropTime = performance.now();
+  gameState = "PLAYING";
+}
 
 function processPowerup(blockType, currentTime, blockRect) {
   playPowerupSound();
@@ -490,46 +520,25 @@ canvas.addEventListener("mousemove", e => {
 });
 
 canvas.addEventListener("mousedown", e => {
-  if (e.button === 0 && gameState === "GAME_OVER" && gameOverY >= 150) {
-    if (mouseX >= 300 && mouseX <= 500 && mouseY >= 350 && mouseY <= 410) {
-      lives = 3;
-      score = 0;
-      rowsRemaining = 3;
-      dropInterval = 15000;
-      blocks = buildLevel();
-      ballSize = 20;
-      ball.w = ballSize;
-      ball.h = ballSize;
-      ballSurface = createBallCanvas(ballSize);
-      paddle.x = 350;
-      ball.x = paddle.x + paddle.w / 2 - ballSize / 2;
-      ball.y = paddle.y - ballSize - 5;
-      ball.dx = 5;
-      ball.dy = -5;
-      ballTrail = [];
-      walrusTimer = 0;
-      tomatoTimer = 0;
-      raccoonTimer = 0;
-      bulldogTimer = 0;
-      stegoTimer = 0;
-      trexTimer = 0;
-      triceratopsTimer = 0;
-      pumpkinTimer = 0;
-      harderMsgTimer = 0;
-      sharkMissiles = 0;
-      activeMissiles = [];
-      dirtBlocks = [];
-      extraBalls = [];
-      Object.keys(iconAnimState).forEach(k => iconAnimState[k].wasActive = false);
-      lastDropTime = performance.now();
-      gameState = "PLAYING";
+  if (e.button === 0) {
+    if (gameState === "START_SCREEN") {
+      // Start button hitbox
+      if (mouseX >= 300 && mouseX <= 500 && mouseY >= 115 && mouseY <= 170) {
+        startNewGame();
+      }
+    } else if (gameState === "GAME_OVER" && gameOverY >= 150) {
+      if (mouseX >= 300 && mouseX <= 500 && mouseY >= 350 && mouseY <= 410) {
+        startNewGame();
+      }
     }
   }
 });
 
 // --- MAIN LOOP ---
 function update(currentTime) {
-  if (currentTime - lastDropTime >= dropInterval && gameState === "PLAYING") {
+  if (gameState !== "PLAYING") return;
+
+  if (currentTime - lastDropTime >= dropInterval) {
     lastDropTime = currentTime;
     if (rowsRemaining > 0) {
       blocks.forEach(b => {
@@ -543,7 +552,6 @@ function update(currentTime) {
       if (gameState === "PLAYING") {
         for (let col = 0; col < 16; col++) {
           const rect = { x: col * (blockW + 5) + 24, y: 50, w: blockW, h: blockH };
-          // Increased incoming row drop spawn chance to 35%
           if (Math.random() < 0.35 && loadedCritters.length > 0) {
             let critter;
             const weights = loadedCritters.map(c => c.name === "basic-blueberry.png" ? 70 : 10);
@@ -567,153 +575,224 @@ function update(currentTime) {
     }
   }
 
-  if (gameState === "PLAYING") {
-    const currentSpeed = (keys["ShiftLeft"] || keys["ShiftRight"]) ? basePaddleSpeed * 2 : basePaddleSpeed;
-    const controlsInverted = currentTime < raccoonTimer;
-    const leftKey = controlsInverted ? keys["ArrowRight"] : keys["ArrowLeft"];
-    const rightKey = controlsInverted ? keys["ArrowLeft"] : keys["ArrowRight"];
+  const currentSpeed = (keys["ShiftLeft"] || keys["ShiftRight"]) ? basePaddleSpeed * 2 : basePaddleSpeed;
+  const controlsInverted = currentTime < raccoonTimer;
+  const leftKey = controlsInverted ? keys["ArrowRight"] : keys["ArrowLeft"];
+  const rightKey = controlsInverted ? keys["ArrowLeft"] : keys["ArrowRight"];
 
-    if (leftKey) paddle.x -= currentSpeed;
-    if (rightKey) paddle.x += currentSpeed;
+  if (leftKey) paddle.x -= currentSpeed;
+  if (rightKey) paddle.x += currentSpeed;
 
-    if (currentTime < triceratopsTimer) {
-      paddle.x += triceratopsDrift;
+  if (currentTime < triceratopsTimer) {
+    paddle.x += triceratopsDrift;
+  }
+
+  if (paddle.x < 0) paddle.x = 0;
+  if (paddle.x + paddle.w > 800) paddle.x = 800 - paddle.w;
+
+  if (tomatoTimer > 0 && currentTime > tomatoTimer) {
+    tomatoTimer = 0;
+    ballSize = 20;
+    const cx = ball.x + ball.w / 2;
+    const cy = ball.y + ball.h / 2;
+    ball.w = ballSize;
+    ball.h = ballSize;
+    ball.x = cx - ballSize / 2;
+    ball.y = cy - ballSize / 2;
+    extraBalls.forEach(e => {
+      const ecx = e.rect.x + e.rect.w / 2;
+      const ecy = e.rect.y + e.rect.h / 2;
+      e.rect.w = ballSize;
+      e.rect.h = ballSize;
+      e.rect.x = ecx - ballSize / 2;
+      e.rect.y = ecy - ballSize / 2;
+    });
+    ballSurface = createBallCanvas(ballSize);
+  }
+
+  if (bulldogTimer > 0 && currentTime > bulldogTimer) {
+    bulldogTimer = 0;
+    dirtBlocks = [];
+  }
+
+  const isWalrusActive = currentTime < walrusTimer;
+  const isStegoActive = currentTime < stegoTimer;
+  const paddleHitboxes = [];
+
+  if (isWalrusActive) {
+    paddleHitboxes.push({ x: paddle.x + paddle.w / 2 - 100, y: paddle.y - 10, w: 200, h: 30 });
+  } else if (isStegoActive) {
+    paddleHitboxes.push({ x: paddle.x, y: paddle.y, w: 16, h: 15 });
+    paddleHitboxes.push({ x: paddle.x + paddle.w / 2 - 8, y: paddle.y, w: 16, h: 15 });
+    paddleHitboxes.push({ x: paddle.x + paddle.w - 16, y: paddle.y, w: 16, h: 15 });
+  } else {
+    paddleHitboxes.push(paddle);
+  }
+
+  activeMissiles = activeMissiles.filter(m => {
+    m.y -= 12;
+    if (m.y + m.h < 0) return false;
+
+    for (let dirt of dirtBlocks) {
+      if (rectsIntersect(m, dirt)) return false;
     }
 
-    if (paddle.x < 0) paddle.x = 0;
-    if (paddle.x + paddle.w > 800) paddle.x = 800 - paddle.w;
+    for (let i = 0; i < blocks.length; i++) {
+      if (rectsIntersect(m, blocks[i].rect)) {
+        const hit = blocks.splice(i, 1)[0];
+        if (hit.is_powerup) {
+          processPowerup(hit.type, currentTime, hit.rect);
+        } else {
+          playBounceSound();
+          score += 10;
+        }
+        checkLevelClear(currentTime);
+        return false;
+      }
+    }
+    return true;
+  });
 
-    if (tomatoTimer > 0 && currentTime > tomatoTimer) {
-      tomatoTimer = 0;
+  ballTrail.push({ x: ball.x + ball.w / 2, y: ball.y + ball.h / 2 });
+  if (ballTrail.length > 6) ballTrail.shift();
+
+  ball.x += ball.dx;
+  ball.y += ball.dy;
+  ball.angle -= 0.08;
+
+  if (ball.x <= 0) {
+    ball.x = 0;
+    ball.dx *= -1;
+    playBounceSound();
+  } else if (ball.x + ball.w >= 800) {
+    ball.x = 800 - ball.w;
+    ball.dx *= -1;
+    playBounceSound();
+  }
+
+  if (ball.y <= 0) {
+    ball.y = 0;
+    ball.dy *= -1;
+    playBounceSound();
+  }
+
+  if (ball.y + ball.h >= 600) {
+    if (extraBalls.length > 0) {
+      const replacement = extraBalls.shift();
+      ball.x = replacement.rect.x;
+      ball.y = replacement.rect.y;
+      ball.dx = replacement.dx;
+      ball.dy = replacement.dy;
+      ballTrail = replacement.trail;
+      ball.angle = replacement.angle;
+    } else {
+      lives--;
       ballSize = 20;
-      const cx = ball.x + ball.w / 2;
-      const cy = ball.y + ball.h / 2;
       ball.w = ballSize;
       ball.h = ballSize;
-      ball.x = cx - ballSize / 2;
-      ball.y = cy - ballSize / 2;
-      extraBalls.forEach(e => {
-        const ecx = e.rect.x + e.rect.w / 2;
-        const ecy = e.rect.y + e.rect.h / 2;
-        e.rect.w = ballSize;
-        e.rect.h = ballSize;
-        e.rect.x = ecx - ballSize / 2;
-        e.rect.y = ecy - ballSize / 2;
-      });
       ballSurface = createBallCanvas(ballSize);
-    }
-
-    if (bulldogTimer > 0 && currentTime > bulldogTimer) {
+      ball.x = paddle.x + paddle.w / 2 - ballSize / 2;
+      ball.y = paddle.y - ballSize - 5;
+      ball.dy = -5;
+      ball.dx = 5;
+      tomatoTimer = 0;
+      raccoonTimer = 0;
       bulldogTimer = 0;
+      stegoTimer = 0;
+      trexTimer = 0;
+      triceratopsTimer = 0;
+      pumpkinTimer = 0;
       dirtBlocks = [];
-    }
+      extraBalls = [];
+      ballTrail = [];
 
-    const isWalrusActive = currentTime < walrusTimer;
-    const isStegoActive = currentTime < stegoTimer;
-    const paddleHitboxes = [];
-
-    if (isWalrusActive) {
-      paddleHitboxes.push({ x: paddle.x + paddle.w / 2 - 100, y: paddle.y - 10, w: 200, h: 30 });
-    } else if (isStegoActive) {
-      paddleHitboxes.push({ x: paddle.x, y: paddle.y, w: 16, h: 15 });
-      paddleHitboxes.push({ x: paddle.x + paddle.w / 2 - 8, y: paddle.y, w: 16, h: 15 });
-      paddleHitboxes.push({ x: paddle.x + paddle.w - 16, y: paddle.y, w: 16, h: 15 });
-    } else {
-      paddleHitboxes.push(paddle);
-    }
-
-    activeMissiles = activeMissiles.filter(m => {
-      m.y -= 12;
-      if (m.y + m.h < 0) return false;
-
-      for (let dirt of dirtBlocks) {
-        if (rectsIntersect(m, dirt)) return false;
+      if (lives <= 0) {
+        gameState = "GAME_OVER";
+        gameOverY = -120;
+      } else {
+        lastDropTime = currentTime;
       }
-
-      for (let i = 0; i < blocks.length; i++) {
-        if (rectsIntersect(m, blocks[i].rect)) {
-          const hit = blocks.splice(i, 1)[0];
-          if (hit.is_powerup) {
-            processPowerup(hit.type, currentTime, hit.rect);
-          } else {
-            playBounceSound();
-            score += 10;
-          }
-          checkLevelClear(currentTime);
-          return false;
-        }
-      }
-      return true;
-    });
-
-    ballTrail.push({ x: ball.x + ball.w / 2, y: ball.y + ball.h / 2 });
-    if (ballTrail.length > 6) ballTrail.shift();
-
-    ball.x += ball.dx;
-    ball.y += ball.dy;
-    ball.angle -= 0.08;
-
-    if (ball.x <= 0) {
-      ball.x = 0;
-      ball.dx *= -1;
-      playBounceSound();
-    } else if (ball.x + ball.w >= 800) {
-      ball.x = 800 - ball.w;
-      ball.dx *= -1;
-      playBounceSound();
     }
+  }
 
-    if (ball.y <= 0) {
-      ball.y = 0;
+  for (let hitBox of paddleHitboxes) {
+    if (rectsIntersect(ball, hitBox) && ball.dy > 0) {
+      const hitPos = ((ball.x + ball.w / 2) - (hitBox.x + hitBox.w / 2)) / (hitBox.w / 2);
+      ball.dx = hitPos * 7;
       ball.dy *= -1;
       playBounceSound();
+
+      if (currentTime < pumpkinTimer) {
+        shakeTimer = currentTime + 300;
+        let destroyed = 0;
+        while (destroyed < 3 && blocks.length > 0) {
+          const idx = Math.floor(Math.random() * blocks.length);
+          const target = blocks.splice(idx, 1)[0];
+          score += target.is_powerup ? 50 : 10;
+          destroyed++;
+        }
+        checkLevelClear(currentTime);
+      }
+      break;
+    }
+  }
+
+  for (let dirt of dirtBlocks) {
+    if (rectsIntersect(ball, dirt)) {
+      ball.dy *= -1;
+      playBounceSound();
+      break;
+    }
+  }
+
+  for (let i = 0; i < blocks.length; i++) {
+    if (rectsIntersect(ball, blocks[i].rect)) {
+      ball.dy *= -1;
+      const hit = blocks.splice(i, 1)[0];
+      if (hit.is_powerup) {
+        processPowerup(hit.type, currentTime, hit.rect);
+      } else {
+        playBounceSound();
+        score += 10;
+      }
+      checkLevelClear(currentTime);
+      break;
+    }
+  }
+
+  extraBalls = extraBalls.filter(eBall => {
+    eBall.trail.push({ x: eBall.rect.x + eBall.rect.w / 2, y: eBall.rect.y + eBall.rect.h / 2 });
+    if (eBall.trail.length > 6) eBall.trail.shift();
+
+    eBall.rect.x += eBall.dx;
+    eBall.rect.y += eBall.dy;
+    eBall.angle -= 0.08;
+
+    if (eBall.rect.x <= 0) {
+      eBall.rect.x = 0;
+      eBall.dx *= -1;
+      playBounceSound();
+    } else if (eBall.rect.x + eBall.rect.w >= 800) {
+      eBall.rect.x = 800 - eBall.rect.w;
+      eBall.dx *= -1;
+      playBounceSound();
     }
 
-    if (ball.y + ball.h >= 600) {
-      if (extraBalls.length > 0) {
-        const replacement = extraBalls.shift();
-        ball.x = replacement.rect.x;
-        ball.y = replacement.rect.y;
-        ball.dx = replacement.dx;
-        ball.dy = replacement.dy;
-        ballTrail = replacement.trail;
-        ball.angle = replacement.angle;
-      } else {
-        lives--;
-        ballSize = 20;
-        ball.w = ballSize;
-        ball.h = ballSize;
-        ballSurface = createBallCanvas(ballSize);
-        // Respawns right above paddle
-        ball.x = paddle.x + paddle.w / 2 - ballSize / 2;
-        ball.y = paddle.y - ballSize - 5;
-        ball.dy = -5;
-        ball.dx = 5;
-        tomatoTimer = 0;
-        raccoonTimer = 0;
-        bulldogTimer = 0;
-        stegoTimer = 0;
-        trexTimer = 0;
-        triceratopsTimer = 0;
-        pumpkinTimer = 0;
-        dirtBlocks = [];
-        extraBalls = [];
-        ballTrail = [];
+    if (eBall.rect.y <= 0) {
+      eBall.rect.y = 0;
+      eBall.dy *= -1;
+      playBounceSound();
+    }
 
-        if (lives <= 0) {
-          gameState = "GAME_OVER";
-          gameOverY = -120;
-        } else {
-          lastDropTime = currentTime;
-        }
-      }
+    if (eBall.rect.y + eBall.rect.h >= 600) {
+      return false;
     }
 
     for (let hitBox of paddleHitboxes) {
-      if (rectsIntersect(ball, hitBox) && ball.dy > 0) {
-        const hitPos = ((ball.x + ball.w / 2) - (hitBox.x + hitBox.w / 2)) / (hitBox.w / 2);
-        ball.dx = hitPos * 7;
-        ball.dy *= -1;
+      if (rectsIntersect(eBall.rect, hitBox) && eBall.dy > 0) {
+        const hitPos = ((eBall.rect.x + eBall.rect.w / 2) - (hitBox.x + hitBox.w / 2)) / (hitBox.w / 2);
+        eBall.dx = hitPos * 7;
+        eBall.dy *= -1;
         playBounceSound();
 
         if (currentTime < pumpkinTimer) {
@@ -732,16 +811,16 @@ function update(currentTime) {
     }
 
     for (let dirt of dirtBlocks) {
-      if (rectsIntersect(ball, dirt)) {
-        ball.dy *= -1;
+      if (rectsIntersect(eBall.rect, dirt)) {
+        eBall.dy *= -1;
         playBounceSound();
         break;
       }
     }
 
     for (let i = 0; i < blocks.length; i++) {
-      if (rectsIntersect(ball, blocks[i].rect)) {
-        ball.dy *= -1;
+      if (rectsIntersect(eBall.rect, blocks[i].rect)) {
+        eBall.dy *= -1;
         const hit = blocks.splice(i, 1)[0];
         if (hit.is_powerup) {
           processPowerup(hit.type, currentTime, hit.rect);
@@ -753,86 +832,122 @@ function update(currentTime) {
         break;
       }
     }
-
-    extraBalls = extraBalls.filter(eBall => {
-      eBall.trail.push({ x: eBall.rect.x + eBall.rect.w / 2, y: eBall.rect.y + eBall.rect.h / 2 });
-      if (eBall.trail.length > 6) eBall.trail.shift();
-
-      eBall.rect.x += eBall.dx;
-      eBall.rect.y += eBall.dy;
-      eBall.angle -= 0.08;
-
-      if (eBall.rect.x <= 0) {
-        eBall.rect.x = 0;
-        eBall.dx *= -1;
-        playBounceSound();
-      } else if (eBall.rect.x + eBall.rect.w >= 800) {
-        eBall.rect.x = 800 - eBall.rect.w;
-        eBall.dx *= -1;
-        playBounceSound();
-      }
-
-      if (eBall.rect.y <= 0) {
-        eBall.rect.y = 0;
-        eBall.dy *= -1;
-        playBounceSound();
-      }
-
-      if (eBall.rect.y + eBall.rect.h >= 600) {
-        return false;
-      }
-
-      for (let hitBox of paddleHitboxes) {
-        if (rectsIntersect(eBall.rect, hitBox) && eBall.dy > 0) {
-          const hitPos = ((eBall.rect.x + eBall.rect.w / 2) - (hitBox.x + hitBox.w / 2)) / (hitBox.w / 2);
-          eBall.dx = hitPos * 7;
-          eBall.dy *= -1;
-          playBounceSound();
-
-          if (currentTime < pumpkinTimer) {
-            shakeTimer = currentTime + 300;
-            let destroyed = 0;
-            while (destroyed < 3 && blocks.length > 0) {
-              const idx = Math.floor(Math.random() * blocks.length);
-              const target = blocks.splice(idx, 1)[0];
-              score += target.is_powerup ? 50 : 10;
-              destroyed++;
-            }
-            checkLevelClear(currentTime);
-          }
-          break;
-        }
-      }
-
-      for (let dirt of dirtBlocks) {
-        if (rectsIntersect(eBall.rect, dirt)) {
-          eBall.dy *= -1;
-          playBounceSound();
-          break;
-        }
-      }
-
-      for (let i = 0; i < blocks.length; i++) {
-        if (rectsIntersect(eBall.rect, blocks[i].rect)) {
-          eBall.dy *= -1;
-          const hit = blocks.splice(i, 1)[0];
-          if (hit.is_powerup) {
-            processPowerup(hit.type, currentTime, hit.rect);
-          } else {
-            playBounceSound();
-            score += 10;
-          }
-          checkLevelClear(currentTime);
-          break;
-        }
-      }
-      return true;
-    });
-  }
+    return true;
+  });
 }
 
 // --- RENDER FUNCTION ---
 function render(currentTime) {
+  // 1. SPLASH / START SCREEN
+  if (gameState === "START_SCREEN") {
+    ctx.fillStyle = "rgb(20, 22, 32)";
+    ctx.fillRect(0, 0, 800, 600);
+
+    // Decorative double border
+    const boxX = 35, boxY = 20, boxW = 730, boxH = 560;
+    ctx.fillStyle = "rgb(28, 32, 48)";
+    ctx.fillRect(boxX, boxY, boxW, boxH);
+
+    ctx.strokeStyle = "rgb(100, 200, 255)";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(boxX, boxY, boxW, boxH);
+
+    ctx.strokeStyle = "rgb(40, 90, 140)";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(boxX + 4, boxY + 4, boxW - 8, boxH - 8);
+
+    // Main Title
+    ctx.fillStyle = "rgb(255, 205, 30)";
+    ctx.font = "bold 44px Impact";
+    ctx.textAlign = "center";
+    ctx.fillText("Corner Critters: 'Breakout'", 400, 70);
+
+    ctx.fillStyle = "rgb(180, 215, 255)";
+    ctx.font = "16px Arial";
+    ctx.fillText("An Arcade Brick-Breaker with Wild Power-ups & Hazards", 400, 96);
+
+    // NEW GAME Button
+    const isBtnHover = (mouseX >= 300 && mouseX <= 500 && mouseY >= 115 && mouseY <= 170);
+    ctx.fillStyle = isBtnHover ? "rgb(150, 255, 150)" : "rgb(90, 210, 90)";
+    roundRect(ctx, 300, 115, 200, 55, 8, true, false);
+
+    ctx.strokeStyle = "rgb(255, 255, 255)";
+    ctx.lineWidth = 2;
+    roundRect(ctx, 300, 115, 200, 55, 8, false, true);
+
+    ctx.fillStyle = "rgb(10, 25, 10)";
+    ctx.font = "bold 30px Impact";
+    ctx.textAlign = "center";
+    ctx.fillText("NEW GAME", 400, 153);
+
+    // Rules / How to play Banner
+    ctx.fillStyle = "rgba(15, 18, 28, 0.75)";
+    roundRect(ctx, 55, 185, 690, 85, 6, true, false);
+    ctx.strokeStyle = "rgb(60, 95, 140)";
+    ctx.lineWidth = 1.5;
+    roundRect(ctx, 55, 185, 690, 85, 6, false, true);
+
+    ctx.fillStyle = "rgb(255, 220, 110)";
+    ctx.font = "bold 16px Arial";
+    ctx.textAlign = "left";
+    ctx.fillText("RULES & CONTROLS:", 70, 208);
+
+    ctx.fillStyle = "rgb(230, 235, 245)";
+    ctx.font = "14px Arial";
+    ctx.fillText("• Move paddle with Left / Right Arrows. Hold SHIFT to sprint. Press SPACE to pause.", 70, 230);
+    ctx.fillText("• Destroy blocks before new rows drop! If blocks cross the paddle line, it's Game Over.", 70, 248);
+    ctx.fillText("• Clear all rows to reset the board with faster drops ('A Little Harder...').", 70, 265);
+
+    // Icon & Status Guide Section
+    ctx.fillStyle = "rgb(120, 200, 255)";
+    ctx.font = "bold 17px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText("CRITTER POWER-UPS & HAZARD GUIDE", 400, 298);
+
+    // 2-Column Icon Grid
+    const keysArr = Object.keys(iconDescriptions);
+    const colWidth = 345;
+    const startY = 320;
+    const rowH = 56;
+
+    keysArr.forEach((key, idx) => {
+      const col = idx % 2;
+      const row = Math.floor(idx / 2);
+      const curX = 65 + col * colWidth;
+      const curY = startY + row * rowH;
+
+      if (statusIcons[key]) {
+        ctx.drawImage(statusIcons[key], curX, curY);
+      }
+
+      ctx.fillStyle = "rgb(240, 240, 240)";
+      ctx.font = "13px Arial";
+      ctx.textAlign = "left";
+
+      // Wrap text in description
+      const desc = iconDescriptions[key];
+      const maxW = 285;
+      const words = desc.split(" ");
+      let line = "";
+      let lineY = curY + 14;
+
+      for (let n = 0; n < words.length; n++) {
+        const testLine = line + words[n] + " ";
+        if (ctx.measureText(testLine).width > maxW && n > 0) {
+          ctx.fillText(line, curX + 42, lineY);
+          line = words[n] + " ";
+          lineY += 16;
+        } else {
+          line = testLine;
+        }
+      }
+      ctx.fillText(line, curX + 42, lineY);
+    });
+
+    return;
+  }
+
+  // 2. IN-GAME / PLAYING / PAUSED RENDERING
   let shakeX = 0, shakeY = 0;
   if (currentTime < shakeTimer) {
     shakeX = Math.floor(Math.random() * 17) - 8;
@@ -982,10 +1097,7 @@ function render(currentTime) {
       }
     });
 
-    // Warning & Event text overlays
     let warningIndex = 0;
-
-    // Method 2 wavy ripple text
     if (currentTime < harderMsgTimer) {
       drawWavyTextCentered(ctx, "A Little Harder...", 400, 90 + warningIndex * 36, currentTime, "rgb(255, 80, 80)");
       warningIndex++;
@@ -1011,7 +1123,7 @@ function render(currentTime) {
     ctx.textAlign = "center";
     ctx.fillText("SHIFT: Sprint | SPACE: Pause | F: Fullscreen", 400, 580);
 
-    // PAUSE MENU ENCYCLOPEDIA
+    // PAUSE MENU
     if (gameState === "PAUSED") {
       ctx.fillStyle = "rgba(15, 15, 25, 0.9)";
       ctx.fillRect(0, 0, 800, 600);
