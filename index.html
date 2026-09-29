@@ -241,7 +241,16 @@ const paddle = { x: 350, y: 550, w: 100, h: 15 };
 const basePaddleSpeed = 7;
 
 let ballSize = 20;
-const ball = { x: 390, y: 300, w: ballSize, h: ballSize, dx: 5, dy: -5, angle: 0 };
+// Spawns safely right above the paddle
+const ball = { 
+  x: paddle.x + paddle.w / 2 - ballSize / 2, 
+  y: paddle.y - ballSize - 5, 
+  w: ballSize, 
+  h: ballSize, 
+  dx: 5, 
+  dy: -5, 
+  angle: 0 
+};
 
 const keys = {};
 let mouseX = 0, mouseY = 0;
@@ -297,7 +306,8 @@ function buildLevel() {
   for (let row = 0; row < 6; row++) {
     for (let col = 0; col < 16; col++) {
       const rect = { x: col * (blockW + 5) + 24, y: row * (blockH + 5) + 50, w: blockW, h: blockH };
-      if (Math.random() < 0.15 && loadedCritters.length > 0) {
+      // Increased spawn chance to 35%
+      if (Math.random() < 0.35 && loadedCritters.length > 0) {
         let critter;
         const weights = loadedCritters.map(c => {
           if (c.name === "basic-blueberry.png") {
@@ -428,9 +438,10 @@ function checkLevelClear(currentTime) {
     pumpkinTimer = 0;
     dirtBlocks = [];
     extraBalls = [];
-    ball.x = 390;
-    ball.y = 300;
+    ball.x = paddle.x + paddle.w / 2 - ballSize / 2;
+    ball.y = paddle.y - ballSize - 5;
     ball.dy = -5;
+    ball.dx = 5;
     activeMissiles = [];
     rowsRemaining = 3;
     lastDropTime = currentTime;
@@ -490,11 +501,11 @@ canvas.addEventListener("mousedown", e => {
       ball.w = ballSize;
       ball.h = ballSize;
       ballSurface = createBallCanvas(ballSize);
-      ball.x = 390;
-      ball.y = 300;
+      paddle.x = 350;
+      ball.x = paddle.x + paddle.w / 2 - ballSize / 2;
+      ball.y = paddle.y - ballSize - 5;
       ball.dx = 5;
       ball.dy = -5;
-      paddle.x = 350;
       ballTrail = [];
       walrusTimer = 0;
       tomatoTimer = 0;
@@ -532,7 +543,8 @@ function update(currentTime) {
       if (gameState === "PLAYING") {
         for (let col = 0; col < 16; col++) {
           const rect = { x: col * (blockW + 5) + 24, y: 50, w: blockW, h: blockH };
-          if (Math.random() < 0.15 && loadedCritters.length > 0) {
+          // Increased incoming row drop spawn chance to 35%
+          if (Math.random() < 0.35 && loadedCritters.length > 0) {
             let critter;
             const weights = loadedCritters.map(c => c.name === "basic-blueberry.png" ? 70 : 10);
             const totalWeight = weights.reduce((a, b) => a + b, 0);
@@ -672,9 +684,11 @@ function update(currentTime) {
         ball.w = ballSize;
         ball.h = ballSize;
         ballSurface = createBallCanvas(ballSize);
-        ball.x = 390;
-        ball.y = 300;
+        // Respawns right above paddle
+        ball.x = paddle.x + paddle.w / 2 - ballSize / 2;
+        ball.y = paddle.y - ballSize - 5;
         ball.dy = -5;
+        ball.dx = 5;
         tomatoTimer = 0;
         raccoonTimer = 0;
         bulldogTimer = 0;
@@ -971,7 +985,7 @@ function render(currentTime) {
     // Warning & Event text overlays
     let warningIndex = 0;
 
-    // Method 2 wavy ripple applied specifically to "A Little Harder..."
+    // Method 2 wavy ripple text
     if (currentTime < harderMsgTimer) {
       drawWavyTextCentered(ctx, "A Little Harder...", 400, 90 + warningIndex * 36, currentTime, "rgb(255, 80, 80)");
       warningIndex++;
