@@ -207,6 +207,7 @@ let score = 0;
 let lives = 3;
 let rowsRemaining = 3;
 let gameState = "START_SCREEN";
+let gameOverReason = "GAME OVER";
 let gameOverY = -120;
 let ballTrail = [];
 
@@ -382,6 +383,7 @@ function startNewGame() {
   extraBalls = [];
   Object.keys(iconAnimState).forEach(k => iconAnimState[k].wasActive = false);
   lastDropTime = performance.now();
+  gameOverReason = "GAME OVER";
   gameState = "PLAYING";
 }
 
@@ -563,6 +565,7 @@ function update(currentTime) {
         b.rect.y += (blockH + 5);
         if (b.rect.y + b.rect.h >= paddle.y) {
           gameState = "GAME_OVER";
+          gameOverReason = "CRUSHED";
           gameOverY = -120;
         }
       });
@@ -725,6 +728,7 @@ function update(currentTime) {
 
       if (lives <= 0) {
         gameState = "GAME_OVER";
+        gameOverReason = "GAME OVER";
         gameOverY = -120;
       } else {
         lastDropTime = currentTime;
@@ -907,7 +911,7 @@ function render(currentTime) {
     ctx.fillStyle = "rgb(230, 235, 245)";
     ctx.font = "14px Arial";
     ctx.fillText("• Move paddle with Left / Right Arrows. Hold SHIFT to sprint. Press SPACE to pause.", 70, 230);
-    ctx.fillText("• Destroy blocks before new rows drop! If blocks cross the paddle line, it's Game Over.", 70, 248);
+    ctx.fillText("• Destroy blocks before new rows drop! If blocks cross the paddle line, it's Crushed.", 70, 248);
     ctx.fillText("• Clear all rows to reset the board with faster drops ('A Little Harder...').", 70, 265);
 
     ctx.fillStyle = "rgb(120, 200, 255)";
@@ -1183,7 +1187,7 @@ function render(currentTime) {
     ctx.fillStyle = "rgb(255, 50, 50)";
     ctx.font = "bold 88px Impact";
     ctx.textAlign = "center";
-    ctx.fillText("YOU DIED", 400, gameOverY);
+    ctx.fillText(gameOverReason, 400, gameOverY);
 
     if (gameOverY >= 150) {
       const isHover = (mouseX >= 300 && mouseX <= 500 && mouseY >= 350 && mouseY <= 410);
