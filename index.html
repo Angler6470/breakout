@@ -2,13 +2,17 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Corner Critters: 'Breakout'</title>
   <style>
     * {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
+      touch-action: none;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
     }
     body {
       background-color: #121212;
@@ -19,20 +23,74 @@
       overflow: hidden;
       font-family: Arial, sans-serif;
     }
+    #gameContainer {
+      position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      width: 100vw;
+      height: 100vh;
+    }
     #gameCanvas {
       background-color: rgb(30, 30, 30);
       box-shadow: 0 0 25px rgba(0, 0, 0, 0.85);
       border: 2px solid #333;
+      max-width: 100vw;
+      max-height: 100vh;
+      aspect-ratio: 4 / 3;
+      object-fit: contain;
+    }
+    /* Mobile Controls Overlay */
+    .mobile-btn {
+      position: absolute;
+      background: rgba(40, 45, 60, 0.75);
+      color: #fff;
+      border: 2px solid rgba(255, 255, 255, 0.4);
+      border-radius: 8px;
+      font-weight: bold;
+      font-family: Arial, sans-serif;
+      font-size: 14px;
+      display: none;
+      justify-content: center;
+      align-items: center;
+      pointer-events: auto;
+      z-index: 10;
+    }
+    #pauseBtn {
+      top: 15px;
+      right: 15px;
+      width: 70px;
+      height: 38px;
+    }
+    #missileBtn {
+      bottom: 25px;
+      right: 20px;
+      width: 80px;
+      height: 50px;
+      background: rgba(220, 60, 40, 0.8);
+      font-size: 13px;
+      text-align: center;
+    }
+    @media (hover: none) and (pointer: coarse) {
+      .mobile-btn {
+        display: flex;
+      }
     }
   </style>
 </head>
 <body>
 
-<canvas id="gameCanvas" width="800" height="600"></canvas>
+<div id="gameContainer">
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+  <button id="pauseBtn" class="mobile-btn">PAUSE</button>
+  <button id="missileBtn" class="mobile-btn">FIRE 🚀</button>
+</div>
 
 <script>
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
+const pauseBtn = document.getElementById("pauseBtn");
+const missileBtn = document.getElementById("missileBtn");
 
 // --- SYNTHESIZED SOUNDS VIA WEB AUDIO API ---
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -253,6 +311,10 @@ const ball = {
 const keys = {};
 let mouseX = 0, mouseY = 0;
 
+// Touch handling variables
+let isTouching = false;
+let targetPaddleX = paddle.x;
+
 function createBallCanvas(size) {
   const bSurf = document.createElement("canvas");
   bSurf.width = size;
@@ -316,12 +378,10 @@ function getRandomCritter(row) {
   return loadedCritters[0];
 }
 
-// Fixed 19% cap: 18 special blocks chosen from the 96 total slots
 function buildLevel() {
-  const totalSlots = 6 * 16; // 96
-  const targetSpecials = Math.round(totalSlots * 0.19); // Exactly 18 blocks
+  const totalSlots = 6 * 16;
+  const targetSpecials = Math.round(totalSlots * 0.19);
   
-  // Pick 18 unique indices
   const specialIndices = new Set();
   while (specialIndices.size < targetSpecials) {
     specialIndices.add(Math.floor(Math.random() * totalSlots));
@@ -363,6 +423,7 @@ function startNewGame() {
   ball.h = ballSize;
   ballSurface = createBallCanvas(ballSize);
   paddle.x = 350;
+  targetPaddleX = paddle.x;
   ball.x = paddle.x + paddle.w / 2 - ballSize / 2;
   ball.y = paddle.y - ballSize - 5;
   ball.dx = 5;
@@ -385,6 +446,19 @@ function startNewGame() {
   lastDropTime = performance.now();
   gameOverReason = "GAME OVER";
   gameState = "PLAYING";
+}
+
+function fireMissile() {
+  if (gameState === "PLAYING" && sharkMissiles > 0) {
+    sharkMissiles--;
+    activeMissiles.push({ x: paddle.x + paddle.w / 2 - 2, y: paddle.y - 15, w: 4, h: 15 });
+    playBounceSound();
+  }
+}
+
+function togglePause() {
+  if (gameState === "PLAYING") gameState = "PAUSED";
+  else if (gameState === "PAUSED") gameState = "PLAYING";
 }
 
 function processPowerup(blockType, currentTime, blockRect) {
@@ -506,20 +580,91 @@ function rectsIntersect(r1, r2) {
            r2.y + r2.h < r1.y);
 }
 
-// --- EVENT LISTENERS ---
+// Convert screen viewport coordinates accurately to internal 800x600 canvas coordinate system
+function getCanvasCoords(clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: (clientX - rect.left) * (canvas.width / rect.width),
+    y: (clientY - rect.top) * (canvas.height / rect.height)
+  };
+}
+
+// --- TOUCH & POINTER HANDLING ---
+function handleTouchMove(clientX, clientY, currentTime) {
+  const coords = getCanvasCoords(clientX, clientY);
+  mouseX = coords.x;
+  mouseY = coords.y;
+
+  const controlsInverted = currentTime < raccoonTimer;
+  let intendedX = coords.x - paddle.w / 2;
+
+  if (controlsInverted) {
+    intendedX = (800 - coords.x) - paddle.w / 2;
+  }
+
+  targetPaddleX = Math.max(0, Math.min(800 - paddle.w, intendedX));
+}
+
+canvas.addEventListener("touchstart", e => {
+  e.preventDefault();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  isTouching = true;
+  const t = e.touches[0];
+  const coords = getCanvasCoords(t.clientX, t.clientY);
+  mouseX = coords.x;
+  mouseY = coords.y;
+
+  if (gameState === "START_SCREEN") {
+    if (mouseX >= 300 && mouseX <= 500 && mouseY >= 115 && mouseY <= 170) {
+      startNewGame();
+    }
+  } else if (gameState === "GAME_OVER" && gameOverY >= 150) {
+    if (mouseX >= 300 && mouseX <= 500 && mouseY >= 350 && mouseY <= 410) {
+      startNewGame();
+    }
+  } else if (gameState === "PLAYING") {
+    handleTouchMove(t.clientX, t.clientY, performance.now());
+  }
+}, { passive: false });
+
+canvas.addEventListener("touchmove", e => {
+  e.preventDefault();
+  if (isTouching && gameState === "PLAYING") {
+    const t = e.touches[0];
+    handleTouchMove(t.clientX, t.clientY, performance.now());
+  }
+}, { passive: false });
+
+window.addEventListener("touchend", e => {
+  if (e.touches.length === 0) isTouching = false;
+});
+
+// Mobile button listeners
+pauseBtn.addEventListener("touchstart", e => {
+  e.preventDefault();
+  togglePause();
+  pauseBtn.innerText = gameState === "PAUSED" ? "RESUME" : "PAUSE";
+});
+pauseBtn.addEventListener("click", () => {
+  togglePause();
+  pauseBtn.innerText = gameState === "PAUSED" ? "RESUME" : "PAUSE";
+});
+
+missileBtn.addEventListener("touchstart", e => {
+  e.preventDefault();
+  fireMissile();
+});
+missileBtn.addEventListener("click", fireMissile);
+
+// --- KEYBOARD & MOUSE LISTENERS ---
 window.addEventListener("keydown", e => {
   keys[e.code] = true;
   if (e.code === "Space") {
     e.preventDefault();
-    if (gameState === "PLAYING") gameState = "PAUSED";
-    else if (gameState === "PAUSED") gameState = "PLAYING";
+    togglePause();
   }
   if (e.code === "Digit1") {
-    if (gameState === "PLAYING" && sharkMissiles > 0) {
-      sharkMissiles--;
-      activeMissiles.push({ x: paddle.x + paddle.w / 2 - 2, y: paddle.y - 15, w: 4, h: 15 });
-      playBounceSound();
-    }
+    fireMissile();
   }
   if (e.code === "KeyF") {
     if (!document.fullscreenElement) {
@@ -535,12 +680,13 @@ window.addEventListener("keyup", e => {
 });
 
 canvas.addEventListener("mousemove", e => {
-  const rect = canvas.getBoundingClientRect();
-  mouseX = (e.clientX - rect.left) * (canvas.width / rect.width);
-  mouseY = (e.clientY - rect.top) * (canvas.height / rect.height);
+  const coords = getCanvasCoords(e.clientX, e.clientY);
+  mouseX = coords.x;
+  mouseY = coords.y;
 });
 
 canvas.addEventListener("mousedown", e => {
+  if (audioCtx.state === 'suspended') audioCtx.resume();
   if (e.button === 0) {
     if (gameState === "START_SCREEN") {
       if (mouseX >= 300 && mouseX <= 500 && mouseY >= 115 && mouseY <= 170) {
@@ -571,7 +717,6 @@ function update(currentTime) {
       });
 
       if (gameState === "PLAYING") {
-        // Capped at 19% per 16-block row: exactly 3 special blocks
         const rowSpecialCols = new Set();
         while (rowSpecialCols.size < 3) {
           rowSpecialCols.add(Math.floor(Math.random() * 16));
@@ -595,13 +740,18 @@ function update(currentTime) {
     }
   }
 
+  // Paddle movement calculation: Touch lerping + Keyboard inputs
   const currentSpeed = (keys["ShiftLeft"] || keys["ShiftRight"]) ? basePaddleSpeed * 2 : basePaddleSpeed;
   const controlsInverted = currentTime < raccoonTimer;
   const leftKey = controlsInverted ? keys["ArrowRight"] : keys["ArrowLeft"];
   const rightKey = controlsInverted ? keys["ArrowLeft"] : keys["ArrowRight"];
 
-  if (leftKey) paddle.x -= currentSpeed;
-  if (rightKey) paddle.x += currentSpeed;
+  if (isTouching) {
+    paddle.x += (targetPaddleX - paddle.x) * 0.35;
+  } else {
+    if (leftKey) paddle.x -= currentSpeed;
+    if (rightKey) paddle.x += currentSpeed;
+  }
 
   if (currentTime < triceratopsTimer) {
     paddle.x += triceratopsDrift;
@@ -859,7 +1009,15 @@ function update(currentTime) {
 
 // --- RENDER FUNCTION ---
 function render(currentTime) {
+  if (sharkMissiles > 0 && gameState === "PLAYING") {
+    missileBtn.style.display = "flex";
+    missileBtn.innerText = `FIRE 🚀 (${sharkMissiles})`;
+  } else {
+    missileBtn.style.display = "none";
+  }
+
   if (gameState === "START_SCREEN") {
+    pauseBtn.style.display = "none";
     ctx.fillStyle = "rgb(20, 22, 32)";
     ctx.fillRect(0, 0, 800, 600);
 
@@ -910,7 +1068,7 @@ function render(currentTime) {
 
     ctx.fillStyle = "rgb(230, 235, 245)";
     ctx.font = "14px Arial";
-    ctx.fillText("• Move paddle with Left / Right Arrows. Hold SHIFT to sprint. Press SPACE to pause.", 70, 230);
+    ctx.fillText("• PC: Left/Right Arrows (Hold SHIFT to sprint) | Mobile: Drag finger on screen.", 70, 230);
     ctx.fillText("• Destroy blocks before new rows drop! If blocks cross the paddle line, it's Crushed.", 70, 248);
     ctx.fillText("• Clear all rows to reset the board with faster drops ('A Little Harder...').", 70, 265);
 
@@ -958,6 +1116,11 @@ function render(currentTime) {
     });
 
     return;
+  }
+
+  // Show pause button on touch screens while active
+  if (window.matchMedia('(hover: none) and (pointer: coarse)').matches) {
+    pauseBtn.style.display = gameState === "GAME_OVER" ? "none" : "flex";
   }
 
   let shakeX = 0, shakeY = 0;
@@ -1133,7 +1296,7 @@ function render(currentTime) {
     ctx.fillStyle = "rgb(150, 150, 150)";
     ctx.font = "16px Arial";
     ctx.textAlign = "center";
-    ctx.fillText("SHIFT: Sprint | SPACE: Pause | F: Fullscreen", 400, 580);
+    ctx.fillText("Drag/Arrow Keys: Move | SHIFT: Sprint | SPACE: Pause", 400, 580);
 
     if (gameState === "PAUSED") {
       ctx.fillStyle = "rgba(15, 15, 25, 0.9)";
@@ -1179,9 +1342,10 @@ function render(currentTime) {
       ctx.fillStyle = "rgb(100, 255, 100)";
       ctx.font = "bold 18px Arial";
       ctx.textAlign = "center";
-      ctx.fillText("Press SPACE to Resume Game", 400, 532);
+      ctx.fillText("Press SPACE / Resume Button", 400, 532);
     }
   } else if (gameState === "GAME_OVER") {
+    pauseBtn.style.display = "none";
     if (gameOverY < 150) gameOverY += 5;
 
     ctx.fillStyle = "rgb(255, 50, 50)";
