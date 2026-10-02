@@ -89,6 +89,8 @@
 <script>
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
+ctx.imageSmoothingEnabled = false; // Ensures pixel art stays crisp on the main canvas
+
 const pauseBtn = document.getElementById("pauseBtn");
 const missileBtn = document.getElementById("missileBtn");
 
@@ -165,6 +167,7 @@ critterFiles.forEach(fileName => {
     offscreen.width = 42;
     offscreen.height = 42;
     const octx = offscreen.getContext("2d");
+    octx.imageSmoothingEnabled = false; // Fixes blur on the critter block sprites
     octx.drawImage(img, left, 0, cropSize, cropSize, 0, 0, 42, 42);
     loadedCritters.push({ img: offscreen, name: fileName });
   };
@@ -205,6 +208,7 @@ Object.keys(iconFilenames).forEach(key => {
     tile.width = 32;
     tile.height = 32;
     const tctx = tile.getContext("2d");
+    tctx.imageSmoothingEnabled = false; // Fixes blur on the UI status icons
 
     tctx.fillStyle = "rgb(230, 235, 245)";
     roundRect(tctx, 0, 0, 32, 32, 4, true, false);
