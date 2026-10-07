@@ -40,7 +40,6 @@
       aspect-ratio: 4 / 3;
       object-fit: contain;
     }
-    /* Mobile Controls Overlay */
     .mobile-btn {
       position: absolute;
       background: rgba(40, 45, 60, 0.75);
@@ -89,7 +88,7 @@
 <script>
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
-ctx.imageSmoothingEnabled = false; // Ensures pixel art stays crisp on the main canvas
+ctx.imageSmoothingEnabled = false;
 
 const pauseBtn = document.getElementById("pauseBtn");
 const missileBtn = document.getElementById("missileBtn");
@@ -167,13 +166,12 @@ critterFiles.forEach(fileName => {
     offscreen.width = 42;
     offscreen.height = 42;
     const octx = offscreen.getContext("2d");
-    octx.imageSmoothingEnabled = false; // Fixes blur on the critter block sprites
+    octx.imageSmoothingEnabled = false;
     octx.drawImage(img, left, 0, cropSize, cropSize, 0, 0, 42, 42);
     loadedCritters.push({ img: offscreen, name: fileName });
   };
 });
 
-// Load Status Icons with Whitish Badge Tile
 const iconFilenames = {
   walrus: 'shield.png',
   tomato: 'large_ball.png',
@@ -208,7 +206,7 @@ Object.keys(iconFilenames).forEach(key => {
     tile.width = 32;
     tile.height = 32;
     const tctx = tile.getContext("2d");
-    tctx.imageSmoothingEnabled = false; // Fixes blur on the UI status icons
+    tctx.imageSmoothingEnabled = false;
 
     tctx.fillStyle = "rgb(230, 235, 245)";
     roundRect(tctx, 0, 0, 32, 32, 4, true, false);
@@ -296,26 +294,27 @@ const blockH = 42;
 let blocks = [];
 
 let lastDropTime = performance.now();
+let lastFrameTime = performance.now();
 let dropInterval = 15000;
 
 const paddle = { x: 350, y: 550, w: 100, h: 15 };
-const basePaddleSpeed = 7;
+const basePaddleSpeed = 6.5;
 
+// Tuned speed values for better mobile tracking
+const BASE_BALL_SPEED = 3.6;
 let ballSize = 20;
 const ball = { 
   x: paddle.x + paddle.w / 2 - ballSize / 2, 
   y: paddle.y - ballSize - 5, 
   w: ballSize, 
   h: ballSize, 
-  dx: 5, 
-  dy: -5, 
+  dx: BASE_BALL_SPEED, 
+  dy: -BASE_BALL_SPEED, 
   angle: 0 
 };
 
 const keys = {};
 let mouseX = 0, mouseY = 0;
-
-// Touch handling variables
 let isTouching = false;
 let targetPaddleX = paddle.x;
 
@@ -430,8 +429,8 @@ function startNewGame() {
   targetPaddleX = paddle.x;
   ball.x = paddle.x + paddle.w / 2 - ballSize / 2;
   ball.y = paddle.y - ballSize - 5;
-  ball.dx = 5;
-  ball.dy = -5;
+  ball.dx = BASE_BALL_SPEED;
+  ball.dy = -BASE_BALL_SPEED;
   ballTrail = [];
   walrusTimer = 0;
   tomatoTimer = 0;
@@ -448,6 +447,7 @@ function startNewGame() {
   extraBalls = [];
   Object.keys(iconAnimState).forEach(k => iconAnimState[k].wasActive = false);
   lastDropTime = performance.now();
+  lastFrameTime = performance.now();
   gameOverReason = "GAME OVER";
   gameState = "PLAYING";
 }
@@ -510,7 +510,7 @@ function processPowerup(blockType, currentTime, blockRect) {
     trexTimer = currentTime + 4000;
   } else if (blockType === "treading-triceratops.png") {
     triceratopsTimer = currentTime + 6000;
-    triceratopsDrift = Math.random() < 0.5 ? -5 : 5;
+    triceratopsDrift = Math.random() < 0.5 ? -3.5 : 3.5;
   } else if (blockType === "charging-gorilla.png") {
     const inflateW = (blockW + 10) * 2;
     const inflateH = (blockH + 10) * 2;
@@ -532,8 +532,8 @@ function processPowerup(blockType, currentTime, blockRect) {
   } else if (blockType === "stampeding-elephant.png") {
     elephantMsgTimer = currentTime + 3000;
     for (let i = 0; i < 3; i++) {
-      const dxChoices = [-5, -4, 4, 5];
-      const dyChoices = [-5, -4];
+      const dxChoices = [-3.8, -3.0, 3.0, 3.8];
+      const dyChoices = [-3.8, -3.2];
       extraBalls.push({
         rect: { x: blockRect.x + blockRect.w / 2 - ballSize / 2, y: blockRect.y + blockRect.h / 2 - ballSize / 2, w: ballSize, h: ballSize },
         dx: dxChoices[Math.floor(Math.random() * dxChoices.length)],
@@ -569,8 +569,8 @@ function checkLevelClear(currentTime) {
     extraBalls = [];
     ball.x = paddle.x + paddle.w / 2 - ballSize / 2;
     ball.y = paddle.y - ballSize - 5;
-    ball.dy = -5;
-    ball.dx = 5;
+    ball.dy = -BASE_BALL_SPEED;
+    ball.dx = BASE_BALL_SPEED;
     activeMissiles = [];
     rowsRemaining = 3;
     lastDropTime = currentTime;
@@ -584,7 +584,6 @@ function rectsIntersect(r1, r2) {
            r2.y + r2.h < r1.y);
 }
 
-// Convert screen viewport coordinates accurately to internal 800x600 canvas coordinate system
 function getCanvasCoords(clientX, clientY) {
   const rect = canvas.getBoundingClientRect();
   return {
@@ -643,7 +642,6 @@ window.addEventListener("touchend", e => {
   if (e.touches.length === 0) isTouching = false;
 });
 
-// Mobile button listeners
 pauseBtn.addEventListener("touchstart", e => {
   e.preventDefault();
   togglePause();
@@ -706,7 +704,14 @@ canvas.addEventListener("mousedown", e => {
 
 // --- MAIN LOOP ---
 function update(currentTime) {
-  if (gameState !== "PLAYING") return;
+  if (gameState !== "PLAYING") {
+    lastFrameTime = currentTime;
+    return;
+  }
+
+  // Delta time normalization (60fps benchmark: dt ≈ 1.0)
+  const dt = Math.min((currentTime - lastFrameTime) / 16.667, 2.0);
+  lastFrameTime = currentTime;
 
   if (currentTime - lastDropTime >= dropInterval) {
     lastDropTime = currentTime;
@@ -744,21 +749,21 @@ function update(currentTime) {
     }
   }
 
-  // Paddle movement calculation: Touch lerping + Keyboard inputs
-  const currentSpeed = (keys["ShiftLeft"] || keys["ShiftRight"]) ? basePaddleSpeed * 2 : basePaddleSpeed;
+  // Paddle movement calculation
+  const currentSpeed = ((keys["ShiftLeft"] || keys["ShiftRight"]) ? basePaddleSpeed * 1.8 : basePaddleSpeed) * dt;
   const controlsInverted = currentTime < raccoonTimer;
   const leftKey = controlsInverted ? keys["ArrowRight"] : keys["ArrowLeft"];
   const rightKey = controlsInverted ? keys["ArrowLeft"] : keys["ArrowRight"];
 
   if (isTouching) {
-    paddle.x += (targetPaddleX - paddle.x) * 0.35;
+    paddle.x += (targetPaddleX - paddle.x) * Math.min(1.0, 0.3 * dt);
   } else {
     if (leftKey) paddle.x -= currentSpeed;
     if (rightKey) paddle.x += currentSpeed;
   }
 
   if (currentTime < triceratopsTimer) {
-    paddle.x += triceratopsDrift;
+    paddle.x += triceratopsDrift * dt;
   }
 
   if (paddle.x < 0) paddle.x = 0;
@@ -804,7 +809,7 @@ function update(currentTime) {
   }
 
   activeMissiles = activeMissiles.filter(m => {
-    m.y -= 12;
+    m.y -= 10 * dt;
     if (m.y + m.h < 0) return false;
 
     for (let dirt of dirtBlocks) {
@@ -827,26 +832,27 @@ function update(currentTime) {
     return true;
   });
 
+  // Ball motion & trail
   ballTrail.push({ x: ball.x + ball.w / 2, y: ball.y + ball.h / 2 });
-  if (ballTrail.length > 6) ballTrail.shift();
+  if (ballTrail.length > 10) ballTrail.shift();
 
-  ball.x += ball.dx;
-  ball.y += ball.dy;
-  ball.angle -= 0.08;
+  ball.x += ball.dx * dt;
+  ball.y += ball.dy * dt;
+  ball.angle -= 0.06 * dt;
 
   if (ball.x <= 0) {
     ball.x = 0;
-    ball.dx *= -1;
+    ball.dx = Math.abs(ball.dx);
     playBounceSound();
   } else if (ball.x + ball.w >= 800) {
     ball.x = 800 - ball.w;
-    ball.dx *= -1;
+    ball.dx = -Math.abs(ball.dx);
     playBounceSound();
   }
 
   if (ball.y <= 0) {
     ball.y = 0;
-    ball.dy *= -1;
+    ball.dy = Math.abs(ball.dy);
     playBounceSound();
   }
 
@@ -867,8 +873,8 @@ function update(currentTime) {
       ballSurface = createBallCanvas(ballSize);
       ball.x = paddle.x + paddle.w / 2 - ballSize / 2;
       ball.y = paddle.y - ballSize - 5;
-      ball.dy = -5;
-      ball.dx = 5;
+      ball.dy = -BASE_BALL_SPEED;
+      ball.dx = BASE_BALL_SPEED;
       tomatoTimer = 0;
       raccoonTimer = 0;
       bulldogTimer = 0;
@@ -890,11 +896,12 @@ function update(currentTime) {
     }
   }
 
+  // Paddle Collision with capped angle bounce
   for (let hitBox of paddleHitboxes) {
     if (rectsIntersect(ball, hitBox) && ball.dy > 0) {
       const hitPos = ((ball.x + ball.w / 2) - (hitBox.x + hitBox.w / 2)) / (hitBox.w / 2);
-      ball.dx = hitPos * 7;
-      ball.dy *= -1;
+      ball.dx = Math.max(-5.5, Math.min(5.5, hitPos * 5.2));
+      ball.dy = -Math.abs(ball.dy);
       playBounceSound();
 
       if (currentTime < pumpkinTimer) {
@@ -935,27 +942,28 @@ function update(currentTime) {
     }
   }
 
+  // Multi-balls
   extraBalls = extraBalls.filter(eBall => {
     eBall.trail.push({ x: eBall.rect.x + eBall.rect.w / 2, y: eBall.rect.y + eBall.rect.h / 2 });
-    if (eBall.trail.length > 6) eBall.trail.shift();
+    if (eBall.trail.length > 8) eBall.trail.shift();
 
-    eBall.rect.x += eBall.dx;
-    eBall.rect.y += eBall.dy;
-    eBall.angle -= 0.08;
+    eBall.rect.x += eBall.dx * dt;
+    eBall.rect.y += eBall.dy * dt;
+    eBall.angle -= 0.06 * dt;
 
     if (eBall.rect.x <= 0) {
       eBall.rect.x = 0;
-      eBall.dx *= -1;
+      eBall.dx = Math.abs(eBall.dx);
       playBounceSound();
     } else if (eBall.rect.x + eBall.rect.w >= 800) {
       eBall.rect.x = 800 - eBall.rect.w;
-      eBall.dx *= -1;
+      eBall.dx = -Math.abs(eBall.dx);
       playBounceSound();
     }
 
     if (eBall.rect.y <= 0) {
       eBall.rect.y = 0;
-      eBall.dy *= -1;
+      eBall.dy = Math.abs(eBall.dy);
       playBounceSound();
     }
 
@@ -966,8 +974,8 @@ function update(currentTime) {
     for (let hitBox of paddleHitboxes) {
       if (rectsIntersect(eBall.rect, hitBox) && eBall.dy > 0) {
         const hitPos = ((eBall.rect.x + eBall.rect.w / 2) - (hitBox.x + hitBox.w / 2)) / (hitBox.w / 2);
-        eBall.dx = hitPos * 7;
-        eBall.dy *= -1;
+        eBall.dx = Math.max(-5.5, Math.min(5.5, hitPos * 5.2));
+        eBall.dy = -Math.abs(eBall.dy);
         playBounceSound();
 
         if (currentTime < pumpkinTimer) {
@@ -1122,7 +1130,6 @@ function render(currentTime) {
     return;
   }
 
-  // Show pause button on touch screens while active
   if (window.matchMedia('(hover: none) and (pointer: coarse)').matches) {
     pauseBtn.style.display = gameState === "GAME_OVER" ? "none" : "flex";
   }
@@ -1176,10 +1183,12 @@ function render(currentTime) {
       }
     });
 
+    // Motion trail rendering
     ballTrail.forEach((pos, i) => {
       const radius = (ballSize / 2) * (i / ballTrail.length);
+      const alpha = (i / ballTrail.length) * 0.7;
       if (radius > 0) {
-        ctx.fillStyle = "rgb(200, 50, 50)";
+        ctx.fillStyle = `rgba(220, 60, 60, ${alpha})`;
         ctx.beginPath();
         ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2);
         ctx.fill();
@@ -1197,8 +1206,9 @@ function render(currentTime) {
     extraBalls.forEach(eBall => {
       eBall.trail.forEach((pos, i) => {
         const radius = (ballSize / 2) * (i / eBall.trail.length);
+        const alpha = (i / eBall.trail.length) * 0.7;
         if (radius > 0) {
-          ctx.fillStyle = "rgb(200, 50, 50)";
+          ctx.fillStyle = `rgba(220, 60, 60, ${alpha})`;
           ctx.beginPath();
           ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2);
           ctx.fill();
