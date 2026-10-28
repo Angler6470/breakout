@@ -143,7 +143,7 @@ function playPowerupSound() {
   osc2.stop(now + 0.28);
 }
 
-// --- CRITTER ABSTRACTION MAP (Colors instead of images) ---
+// --- CRITTER MAP ---
 const critterTypes = [
   { name: "aggressive-shark.png", color: "rgb(60, 90, 110)" }, 
   { name: "armored-walrus.png", color: "rgb(160, 220, 240)" }, 
@@ -205,6 +205,9 @@ Object.keys(iconFilenames).forEach(key => {
   };
 });
 
+const rocketImg = new Image();
+rocketImg.src = 'images/rocket.png';
+
 function roundRect(ctx, x, y, width, height, radius, fill, stroke) {
   ctx.beginPath();
   ctx.moveTo(x + radius, y);
@@ -237,10 +240,15 @@ function drawWavyTextCentered(ctx, text, centerX, centerY, currentTime, color) {
   ctx.restore();
 }
 
-// --- GAME STATE & VARIABLES ---
-let score = 0, lives = 3, rowsRemaining = 3;
-let blockHpLevel = 0; // 0 = 3HP, 1 = 2HP, 2 = 1HP
-let ballSpeedLevel = 0; // 0 = normal, 1 = -10%, 2 = -20%, 3 = -30%
+// --- GAME STATE & ESCALATION VARIABLES ---
+let score = 0, lives = 3;
+let currentWave = 1;
+let blockHpLevel = 0; 
+let ballSpeedLevel = 0;
+let gridDelayLevel = 0;
+let luckyBlocksLevel = 0;
+let scoreMultiplierTimer = 0;
+
 let gameState = "START_SCREEN";
 let gameOverReason = "GAME OVER";
 let gameOverY = -120;
@@ -250,12 +258,10 @@ let showingHelp = false;
 let walrusTimer = 0, tomatoTimer = 0, raccoonTimer = 0;
 let bulldogTimer = 0, stegoTimer = 0, trexTimer = 0;
 let triceratopsTimer = 0, pumpkinTimer = 0;
-let shakeTimer = 0, elephantMsgTimer = 0, harderMsgTimer = 0;
+let shakeTimer = 0, elephantMsgTimer = 0, waveMsgTimer = 0;
 let triceratopsDrift = 0, sharkMissiles = 0;
 
-let leftWallHitTime = 0;
-let rightWallHitTime = 0;
-
+let leftWallHitTime = 0, rightWallHitTime = 0;
 let activeMissiles = [], dirtBlocks = [], extraBalls = [];
 
 // Visual "Juice" Arrays
@@ -272,13 +278,11 @@ for(let i=0; i<70; i++) {
     });
 }
 
-const blockW = 42;
-const blockH = 42;
+const blockW = 42, blockH = 42;
 let blocks = [];
-
 let lastDropTime = performance.now();
 let lastFrameTime = performance.now();
-let dropInterval = 15000;
+let dropInterval = 25000;
 
 const paddle = { x: 350, y: 550, w: 100, h: 15 };
 const basePaddleSpeed = 6.5;
@@ -297,10 +301,7 @@ const ball = {
 
 const keys = {};
 let mouseX = 0, mouseY = 0;
-
-// Unified tracking for touch/mouse position
-let inputX = paddle.x;
-let isInteracting = false; 
+let inputX = paddle.x, isInteracting = false; 
 
 function createBallCanvas(size) {
   const bSurf = document.createElement("canvas");
@@ -313,14 +314,12 @@ function createBallCanvas(size) {
   bctx.beginPath();
   bctx.arc(radius, radius, radius, 0, Math.PI * 2);
   bctx.fill();
-
   bctx.strokeStyle = "rgb(255, 255, 255)";
   bctx.lineWidth = lineW;
   bctx.beginPath();
   bctx.moveTo(radius, 0); bctx.lineTo(radius, size);
   bctx.moveTo(0, radius); bctx.lineTo(size, radius);
   bctx.stroke();
-
   return bSurf;
 }
 
@@ -335,30 +334,54 @@ function createCloakedBallCanvas(size) {
   bctx.beginPath();
   bctx.arc(radius, radius, radius, 0, Math.PI * 2);
   bctx.fill();
-
   bctx.strokeStyle = "rgb(255, 255, 255)";
   bctx.lineWidth = lineW;
   bctx.beginPath();
   bctx.moveTo(radius, 0); bctx.lineTo(radius, size);
   bctx.moveTo(0, radius); bctx.lineTo(size, radius);
   bctx.stroke();
-
   return bSurf;
 }
 
 let ballSurface = createBallCanvas(ballSize);
 let cloakedBallSurface = createCloakedBallCanvas(ballSize);
 
-// DYNAMIC BLOCK GENERATOR (Multi-hit states)
-function createGenericBlockCanvas(hp) {
+// DYNAMIC ESCALATING BLOCK GENERATOR
+const blockImages = {};
+function getBlockImage(hp) {
+  if (blockImages[hp]) return blockImages[hp];
+  
   const c = document.createElement("canvas");
   c.width = blockW; c.height = blockH;
   const x = c.getContext("2d");
   
-  x.fillStyle = hp === 3 ? "rgb(100, 150, 200)" : (hp === 2 ? "rgb(85, 135, 180)" : "rgb(70, 120, 160)");
-  x.fillRect(0, 0, blockW, blockH);
+  if (hp === 'steel') {
+    x.fillStyle = "rgb(120, 120, 130)";
+    x.fillRect(0, 0, blockW, blockH);
+    x.strokeStyle = "rgb(80, 80, 90)";
+    x.lineWidth = 3;
+    x.strokeRect(0, 0, blockW, blockH);
+    // Industrial Rivets
+    x.fillStyle = "black";
+    x.fillRect(5, 5, 4, 4); x.fillRect(33, 5, 4, 4);
+    x.fillRect(5, 33, 4, 4); x.fillRect(33, 33, 4, 4);
+    blockImages[hp] = c;
+    return c;
+  }
+
+  // HP Color mapping logic (scales infinitely)
+  const colors = {
+    1: ["rgb(70, 120, 160)", "rgb(30, 80, 130)"],     // Dark blue
+    2: ["rgb(85, 135, 180)", "rgb(40, 90, 140)"],     // Blue
+    3: ["rgb(100, 150, 200)", "rgb(50, 100, 150)"],    // Bright blue
+    4: ["rgb(140, 90, 180)", "rgb(90, 40, 130)"],     // Purple
+    5: ["rgb(200, 70, 70)", "rgb(140, 30, 30)"]       // Red (used for 5+)
+  };
   
-  x.strokeStyle = hp === 3 ? "rgb(50, 100, 150)" : "rgb(30, 80, 130)";
+  const useHp = Math.min(hp, 5);
+  x.fillStyle = colors[useHp][0];
+  x.fillRect(0, 0, blockW, blockH);
+  x.strokeStyle = colors[useHp][1];
   x.lineWidth = 3;
   x.strokeRect(0, 0, blockW, blockH);
 
@@ -374,17 +397,13 @@ function createGenericBlockCanvas(hp) {
     x.beginPath();
     x.moveTo(42, 10); x.lineTo(30, 20); x.lineTo(35, 35); x.lineTo(20, 42);
     x.stroke();
-    
     x.fillStyle = "rgba(0, 0, 0, 0.4)";
     x.fillRect(25, 15, 8, 8);
   }
   
+  blockImages[hp] = c;
   return c;
 }
-
-const genericBlock3 = createGenericBlockCanvas(3);
-const genericBlock2 = createGenericBlockCanvas(2);
-const genericBlock1 = createGenericBlockCanvas(1);
 
 const dirtSurface = document.createElement("canvas");
 dirtSurface.width = blockW; dirtSurface.height = blockH;
@@ -394,6 +413,85 @@ dctx.fillRect(0, 0, blockW, blockH);
 dctx.strokeStyle = "rgb(80, 50, 20)";
 dctx.lineWidth = 3;
 dctx.strokeRect(0, 0, blockW, blockH);
+
+// SCORE HELPER
+function addScore(amount, currentTime) {
+  const mult = (currentTime < scoreMultiplierTimer) ? 2 : 1;
+  score += (amount * mult);
+}
+
+// SHOP DEFINITIONS
+const getShopItems = () => [
+  {
+    id: 'weaker_bricks',
+    name: 'Weaker Bricks',
+    costs: [1000, 3000],
+    descs: ['-1 Block HP from Wave Scaling', '-2 Block HP from Wave Scaling', '-2 Block HP from Scaling (Maxed)'],
+    level: blockHpLevel,
+    maxLevel: 2,
+    action: () => {
+      blockHpLevel++;
+      blocks.forEach(b => {
+        if (!b.is_powerup && typeof b.hp === 'number' && b.hp > 1) {
+          b.hp -= 1;
+          b.image = getBlockImage(b.hp);
+        }
+      });
+    }
+  },
+  {
+    id: 'slower_ball',
+    name: 'Slower Ball',
+    costs: [1500, 3000, 5000],
+    descs: ['Slows ball base speed by 10%', 'Slows ball base speed by 20%', 'Slows ball base speed by 30%', 'Slows ball base speed by 30% (Max)'],
+    level: ballSpeedLevel,
+    maxLevel: 3,
+    action: () => {
+      ballSpeedLevel++;
+      let oldMult = 1 - ((ballSpeedLevel - 1) * 0.1);
+      let newMult = 1 - (ballSpeedLevel * 0.1);
+      let factor = newMult / oldMult;
+      ball.dx *= factor; ball.dy *= factor;
+      extraBalls.forEach(e => { e.dx *= factor; e.dy *= factor; });
+    }
+  },
+  {
+    id: 'delay_drops',
+    name: 'Grid Delay',
+    costs: [1500, 3000, 5000],
+    descs: ['Adds 3s to the wave drop timer', 'Adds 6s to the wave drop timer', 'Adds 9s to the wave drop timer', 'Adds 9s to the wave drop timer (Max)'],
+    level: gridDelayLevel,
+    maxLevel: 3,
+    action: () => {
+      gridDelayLevel++;
+      dropInterval += 3000;
+      lastDropTime += 3000;
+    }
+  },
+  {
+    id: 'lucky_blocks',
+    name: 'Lucky Blocks',
+    costs: [1500, 3000, 5000],
+    descs: ['Boosts special spawn chance to 23%', 'Boosts special spawn chance to 27%', 'Boosts special spawn chance to 31%', 'Boosts special spawn chance to 31% (Max)'],
+    level: luckyBlocksLevel,
+    maxLevel: 3,
+    action: () => {
+      luckyBlocksLevel++;
+    }
+  },
+  {
+    id: 'score_surge',
+    name: 'Score Surge (Consumable)',
+    costs: [1000],
+    descs: ['2x Points for the next 45 seconds', '2x Points for the next 45 seconds', '2x Points for the next 45 seconds'],
+    level: 0,
+    maxLevel: 999,
+    action: (currentTime) => {
+      scoreMultiplierTimer = currentTime + 45000;
+    },
+    isConsumable: true
+  }
+];
 
 function getRandomCritter(row) {
   const weights = critterTypes.map(c => {
@@ -411,25 +509,33 @@ function getRandomCritter(row) {
 
 function buildLevel() {
   const totalSlots = 6 * 16;
-  const targetSpecials = Math.round(totalSlots * 0.19);
-  
+  const baseRate = 0.19 + (luckyBlocksLevel * 0.04);
+  const targetSpecials = Math.round(totalSlots * baseRate);
   const specialIndices = new Set();
+  
   while (specialIndices.size < targetSpecials) {
     specialIndices.add(Math.floor(Math.random() * totalSlots));
   }
 
   const list = [];
   let index = 0;
+  
+  // Escalating Math calculation
+  let baseHp = 3 + Math.floor(currentWave / 5);
+  let steelChance = Math.max(0, Math.min(0.25, (currentWave - 5) * 0.02));
+
   for (let row = 0; row < 6; row++) {
     for (let col = 0; col < 16; col++) {
       const rect = { x: col * (blockW + 5) + 24, y: row * (blockH + 5) + 50, w: blockW, h: blockH };
+      
       if (specialIndices.has(index)) {
         const critter = getRandomCritter(row);
         list.push({ rect, is_powerup: true, type: critter.name, color: critter.color, hp: 1 });
+      } else if (Math.random() < steelChance && row < 3) {
+        list.push({ rect, is_powerup: false, type: 'steel', hp: 'steel', image: getBlockImage('steel') });
       } else {
-        let hpVal = 3 - blockHpLevel;
-        let bImg = hpVal === 3 ? genericBlock3 : (hpVal === 2 ? genericBlock2 : genericBlock1);
-        list.push({ rect, is_powerup: false, type: 'generic', hp: hpVal, image: bImg });
+        let hpVal = Math.max(1, baseHp - blockHpLevel);
+        list.push({ rect, is_powerup: false, type: 'generic', hp: hpVal, image: getBlockImage(hpVal) });
       }
       index++;
     }
@@ -437,11 +543,16 @@ function buildLevel() {
   return list;
 }
 
-blocks = buildLevel();
+function calcDropInterval() {
+  // Starts at 25s, shrinks by 0.75s per wave down to a strict 8s minimum
+  const dropIntervalBase = Math.max(8000, 25000 - (currentWave * 750));
+  return dropIntervalBase + (gridDelayLevel * 3000);
+}
 
 function startNewGame() {
-  lives = 3; score = 0; rowsRemaining = 3; blockHpLevel = 0; ballSpeedLevel = 0;
-  dropInterval = 15000;
+  lives = 3; score = 0; currentWave = 1; 
+  blockHpLevel = 0; ballSpeedLevel = 0; gridDelayLevel = 0; luckyBlocksLevel = 0; scoreMultiplierTimer = 0;
+  dropInterval = calcDropInterval();
   blocks = buildLevel();
   ballSize = 20;
   ballSurface = createBallCanvas(ballSize);
@@ -450,12 +561,11 @@ function startNewGame() {
   ball.w = ballSize; ball.h = ballSize;
   ball.x = paddle.x + paddle.w / 2 - ballSize / 2;
   ball.y = paddle.y - ballSize - 5;
-  let mult = 1 - (ballSpeedLevel * 0.1);
-  ball.dx = BASE_BALL_SPEED * mult; ball.dy = -BASE_BALL_SPEED * mult;
+  ball.dx = BASE_BALL_SPEED; ball.dy = -BASE_BALL_SPEED;
   ballTrail = [];
   walrusTimer = 0; tomatoTimer = 0; raccoonTimer = 0;
   bulldogTimer = 0; stegoTimer = 0; trexTimer = 0;
-  triceratopsTimer = 0; pumpkinTimer = 0; harderMsgTimer = 0;
+  triceratopsTimer = 0; pumpkinTimer = 0; waveMsgTimer = 0;
   sharkMissiles = 0; activeMissiles = []; dirtBlocks = []; extraBalls = [];
   particles = []; floatingTexts = [];
   leftWallHitTime = 0; rightWallHitTime = 0; showingHelp = false;
@@ -478,9 +588,11 @@ function togglePause() {
   else if (gameState === "PAUSED") gameState = "PLAYING";
 }
 
-function destroyBlockVisuals(block) {
-  const color = block.is_powerup ? block.color : "rgb(100, 150, 200)";
-  const text = block.is_powerup ? "+50" : "+10";
+function destroyBlockVisuals(block, currentTime) {
+  const color = (block.is_powerup || block.hp === 'steel') ? (block.color || "rgb(150,150,160)") : "rgb(100, 150, 200)";
+  const basePts = block.is_powerup ? 50 : (block.hp === 'steel' ? 100 : 10);
+  const mult = (currentTime < scoreMultiplierTimer) ? 2 : 1;
+  const text = `+${basePts * mult}`;
   
   for(let i=0; i<6; i++) {
     particles.push({
@@ -505,7 +617,7 @@ function destroyBlockVisuals(block) {
 }
 
 function spawnHitParticles(block) {
-  const color = block.is_powerup ? block.color : "rgb(180, 200, 220)";
+  const color = block.is_powerup ? block.color : (block.hp === 'steel' ? "rgb(255, 255, 200)" : "rgb(180, 200, 220)");
   for(let i=0; i<3; i++) {
     particles.push({
       x: block.rect.x + block.rect.w/2,
@@ -567,8 +679,8 @@ function processPowerup(blockType, currentTime, blockRect) {
     const smashRect = { x: blockRect.x - (blockW + 10), y: blockRect.y - (blockH + 10), w: blockRect.w + (blockW + 10)*2, h: blockRect.h + (blockH + 10)*2 };
     blocks = blocks.filter(b => {
       if (rectsIntersect(b.rect, smashRect)) { 
-        destroyBlockVisuals(b);
-        score += 10; 
+        destroyBlockVisuals(b, currentTime);
+        addScore(10, currentTime);
         return false; 
       }
       return true;
@@ -587,16 +699,16 @@ function processPowerup(blockType, currentTime, blockRect) {
       });
     }
   } else {
-    score += 50;
+    addScore(50, currentTime);
   }
 }
 
 function checkLevelClear(currentTime) {
   if (blocks.length === 0) {
-    if (rowsRemaining <= 0) {
-      dropInterval = Math.max(5000, dropInterval - 2000);
-      harderMsgTimer = currentTime + 3000;
-    }
+    currentWave++;
+    waveMsgTimer = currentTime + 3000;
+    
+    dropInterval = calcDropInterval();
     blocks = buildLevel();
     ballSize = 20; ballSurface = createBallCanvas(ballSize);
     cloakedBallSurface = createCloakedBallCanvas(ballSize);
@@ -606,7 +718,7 @@ function checkLevelClear(currentTime) {
     ball.x = paddle.x + paddle.w / 2 - ballSize / 2; ball.y = paddle.y - ballSize - 5;
     let mult = 1 - (ballSpeedLevel * 0.1);
     ball.dy = -BASE_BALL_SPEED * mult; ball.dx = BASE_BALL_SPEED * mult;
-    activeMissiles = []; rowsRemaining = 3; lastDropTime = currentTime;
+    activeMissiles = []; lastDropTime = currentTime;
   }
 }
 
@@ -623,7 +735,6 @@ function handleBlockCollision(bBall, blockList, currentTime) {
       const overlapRight = (hit.rect.x + hit.rect.w) - bBall.x;
       const overlapTop = (bBall.y + bBall.h) - hit.rect.y;
       const overlapBottom = (hit.rect.y + hit.rect.h) - bBall.y;
-      
       const minOverlap = Math.min(overlapLeft, overlapRight, overlapTop, overlapBottom);
       
       if (minOverlap === overlapTop || minOverlap === overlapBottom) {
@@ -632,25 +743,29 @@ function handleBlockCollision(bBall, blockList, currentTime) {
         bBall.dx *= -1;
       }
 
+      if (hit.hp === 'steel') {
+        playBounceSound();
+        spawnHitParticles(hit);
+        return true; 
+      }
+
       hit.hp -= 1;
-      score += 2;
+      addScore(2, currentTime);
       
       if (hit.hp <= 0) {
         blockList.splice(i, 1);
-        destroyBlockVisuals(hit);
+        destroyBlockVisuals(hit, currentTime);
         if (hit.is_powerup) {
           processPowerup(hit.type, currentTime, hit.rect);
         } else {
           playBounceSound();
-          score += 10;
+          addScore(10, currentTime);
         }
         checkLevelClear(currentTime);
       } else {
         playBounceSound();
         spawnHitParticles(hit);
-        if (!hit.is_powerup) {
-          hit.image = hit.hp === 2 ? genericBlock2 : genericBlock1;
-        }
+        if (!hit.is_powerup) hit.image = getBlockImage(hit.hp);
       }
       
       return true;
@@ -667,7 +782,6 @@ function getCanvasCoords(clientX, clientY) {
   };
 }
 
-// --- POSITION TRACKING ABSTRACTION ---
 function updateInputPosition(clientX, clientY, currentTime) {
   const coords = getCanvasCoords(clientX, clientY);
   mouseX = coords.x; mouseY = coords.y;
@@ -681,8 +795,8 @@ let lastTap = 0;
 canvas.addEventListener("touchstart", e => {
   e.preventDefault();
   if (audioCtx.state === 'suspended') audioCtx.resume();
+  const currentTime = performance.now();
   
-  const currentTime = new Date().getTime();
   const tapLength = currentTime - lastTap;
   if (tapLength < 300 && tapLength > 0) {
     if (!document.fullscreenElement) canvas.requestFullscreen().catch(()=>{});
@@ -698,39 +812,24 @@ canvas.addEventListener("touchstart", e => {
   if (gameState === "START_SCREEN") {
     if (mouseX >= 300 && mouseX <= 500 && mouseY >= 115 && mouseY <= 170) startNewGame();
   } else if (gameState === "PAUSED") {
-    // Check Shop Buy Button 1 (Weaker Bricks)
-    if (mouseX >= 630 && mouseX <= 710 && mouseY >= 210 && mouseY <= 250) {
-      let cost = blockHpLevel === 0 ? 1000 : (blockHpLevel === 1 ? 3000 : null);
-      if (cost && score >= cost) {
-        score -= cost;
-        blockHpLevel++;
-        playPowerupSound();
-        let maxAllowed = 3 - blockHpLevel;
-        blocks.forEach(b => {
-          if (!b.is_powerup && b.hp > maxAllowed) {
-            b.hp = maxAllowed;
-            b.image = (b.hp === 2) ? genericBlock2 : genericBlock1;
-          }
-        });
+    let shopY = 170;
+    const items = getShopItems();
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const lvl = item.level;
+      const cost = item.isConsumable ? item.costs[0] : (lvl < item.maxLevel ? item.costs[lvl] : null);
+      
+      if (mouseX >= 650 && mouseX <= 730 && mouseY >= shopY + 12 && mouseY <= shopY + 52) {
+        let canBuy = cost !== null && score >= cost;
+        if (item.id === 'score_surge' && currentTime < scoreMultiplierTimer) canBuy = false;
+        
+        if (canBuy) {
+          score -= cost;
+          item.action(currentTime);
+          playPowerupSound();
+        }
       }
-    }
-    // Check Shop Buy Button 2 (Slower Ball)
-    if (mouseX >= 630 && mouseX <= 710 && mouseY >= 300 && mouseY <= 340) {
-      let cost2 = ballSpeedLevel === 0 ? 1500 : (ballSpeedLevel === 1 ? 3000 : (ballSpeedLevel === 2 ? 5000 : null));
-      if (cost2 && score >= cost2) {
-        score -= cost2;
-        ballSpeedLevel++;
-        playPowerupSound();
-        let oldMult = 1 - ((ballSpeedLevel - 1) * 0.1);
-        let newMult = 1 - (ballSpeedLevel * 0.1);
-        let factor = newMult / oldMult;
-        ball.dx *= factor;
-        ball.dy *= factor;
-        extraBalls.forEach(e => {
-            e.dx *= factor;
-            e.dy *= factor;
-        });
-      }
+      shopY += 70;
     }
   } else if (gameState === "GAME_OVER" && gameOverY >= 150) {
     if (showingHelp) {
@@ -755,7 +854,6 @@ canvas.addEventListener("touchmove", e => {
 }, { passive: false });
 
 window.addEventListener("touchend", e => { if (e.touches.length === 0) isInteracting = false; });
-
 pauseBtn.addEventListener("touchstart", e => { e.preventDefault(); togglePause(); pauseBtn.innerText = gameState === "PAUSED" ? "RESUME" : "PAUSE"; });
 pauseBtn.addEventListener("click", () => { togglePause(); pauseBtn.innerText = gameState === "PAUSED" ? "RESUME" : "PAUSE"; });
 missileBtn.addEventListener("touchstart", e => { e.preventDefault(); fireMissile(); });
@@ -767,7 +865,6 @@ canvas.addEventListener("dblclick", e => {
   else document.exitFullscreen();
 });
 
-// --- KEYBOARD & MOUSE LISTENERS ---
 window.addEventListener("keydown", e => {
   keys[e.code] = true;
   if (e.code === "ArrowLeft" || e.code === "ArrowRight" || e.code === "KeyA" || e.code === "KeyD") {
@@ -790,43 +887,29 @@ canvas.addEventListener("mousemove", e => {
 
 canvas.addEventListener("mousedown", e => {
   if (audioCtx.state === 'suspended') audioCtx.resume();
+  const currentTime = performance.now();
   if (e.button === 0) {
     if (gameState === "START_SCREEN") {
       if (mouseX >= 300 && mouseX <= 500 && mouseY >= 115 && mouseY <= 170) startNewGame();
     } else if (gameState === "PAUSED") {
-      // Check Shop Buy Button 1 (Weaker Bricks)
-      if (mouseX >= 630 && mouseX <= 710 && mouseY >= 210 && mouseY <= 250) {
-        let cost = blockHpLevel === 0 ? 1000 : (blockHpLevel === 1 ? 3000 : null);
-        if (cost && score >= cost) {
-          score -= cost;
-          blockHpLevel++;
-          playPowerupSound();
-          let maxAllowed = 3 - blockHpLevel;
-          blocks.forEach(b => {
-            if (!b.is_powerup && b.hp > maxAllowed) {
-              b.hp = maxAllowed;
-              b.image = (b.hp === 2) ? genericBlock2 : genericBlock1;
-            }
-          });
+      let shopY = 170;
+      const items = getShopItems();
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        const lvl = item.level;
+        const cost = item.isConsumable ? item.costs[0] : (lvl < item.maxLevel ? item.costs[lvl] : null);
+        
+        if (mouseX >= 650 && mouseX <= 730 && mouseY >= shopY + 12 && mouseY <= shopY + 52) {
+          let canBuy = cost !== null && score >= cost;
+          if (item.id === 'score_surge' && currentTime < scoreMultiplierTimer) canBuy = false;
+          
+          if (canBuy) {
+            score -= cost;
+            item.action(currentTime);
+            playPowerupSound();
+          }
         }
-      }
-      // Check Shop Buy Button 2 (Slower Ball)
-      if (mouseX >= 630 && mouseX <= 710 && mouseY >= 300 && mouseY <= 340) {
-        let cost2 = ballSpeedLevel === 0 ? 1500 : (ballSpeedLevel === 1 ? 3000 : (ballSpeedLevel === 2 ? 5000 : null));
-        if (cost2 && score >= cost2) {
-          score -= cost2;
-          ballSpeedLevel++;
-          playPowerupSound();
-          let oldMult = 1 - ((ballSpeedLevel - 1) * 0.1);
-          let newMult = 1 - (ballSpeedLevel * 0.1);
-          let factor = newMult / oldMult;
-          ball.dx *= factor;
-          ball.dy *= factor;
-          extraBalls.forEach(e => {
-              e.dx *= factor;
-              e.dy *= factor;
-          });
-        }
+        shopY += 70;
       }
     } else if (gameState === "GAME_OVER" && gameOverY >= 150) {
       if (showingHelp) {
@@ -854,30 +937,25 @@ function update(currentTime) {
 
   stars.forEach(s => {
     s.y += s.speed * dt;
-    if (s.y > 600) {
-      s.y = -5;
-      s.x = Math.random() * 800;
-    }
+    if (s.y > 600) { s.y = -5; s.x = Math.random() * 800; }
   });
 
   if (gameState !== "PLAYING") return;
 
   particles = particles.filter(p => {
-    p.x += p.vx * dt;
-    p.y += p.vy * dt;
-    p.vy += 0.4 * dt; 
-    p.life -= 0.02 * dt;
+    p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 0.4 * dt; p.life -= 0.02 * dt;
     return p.life > 0 && p.y < 600;
   });
 
   floatingTexts = floatingTexts.filter(ft => {
-    ft.y += ft.vy * dt;
-    ft.life -= 0.015 * dt;
-    return ft.life > 0;
+    ft.y += ft.vy * dt; ft.life -= 0.015 * dt; return ft.life > 0;
   });
 
   if (currentTime - lastDropTime >= dropInterval) {
     lastDropTime = currentTime;
+    currentWave++;
+    dropInterval = calcDropInterval();
+    waveMsgTimer = currentTime + 3000;
     
     blocks.forEach(b => {
       b.rect.y += (blockH + 5);
@@ -888,16 +966,22 @@ function update(currentTime) {
 
     if (gameState === "PLAYING") {
       const rowSpecialCols = new Set();
-      while (rowSpecialCols.size < 3) rowSpecialCols.add(Math.floor(Math.random() * 16));
+      const numSpecials = 3 + luckyBlocksLevel;
+      while (rowSpecialCols.size < numSpecials) rowSpecialCols.add(Math.floor(Math.random() * 16));
+      
+      let baseHp = 3 + Math.floor(currentWave / 5);
+      let steelChance = Math.max(0, Math.min(0.25, (currentWave - 5) * 0.02));
+
       for (let col = 0; col < 16; col++) {
         const rect = { x: col * (blockW + 5) + 24, y: 50, w: blockW, h: blockH };
         if (rowSpecialCols.has(col)) {
           const critter = getRandomCritter(0);
           blocks.push({ rect, is_powerup: true, type: critter.name, color: critter.color, hp: 1 });
+        } else if (Math.random() < steelChance) {
+          blocks.push({ rect, is_powerup: false, type: 'steel', hp: 'steel', image: getBlockImage('steel') });
         } else {
-          let hpVal = 3 - blockHpLevel;
-          let bImg = hpVal === 3 ? genericBlock3 : (hpVal === 2 ? genericBlock2 : genericBlock1);
-          blocks.push({ rect, is_powerup: false, type: 'generic', hp: hpVal, image: bImg });
+          let hpVal = Math.max(1, baseHp - blockHpLevel);
+          blocks.push({ rect, is_powerup: false, type: 'generic', hp: hpVal, image: getBlockImage(hpVal) });
         }
       }
     }
@@ -956,18 +1040,22 @@ function update(currentTime) {
     for (let i = 0; i < blocks.length; i++) {
       if (rectsIntersect(m, blocks[i].rect)) {
         const hit = blocks[i];
-        hit.hp -= 1;
-        score += 2;
+        if (hit.hp === 'steel') {
+            hit.hp = 0; // Missiles instakill steel
+        } else {
+            hit.hp -= 1;
+        }
+        addScore(2, currentTime);
         if (hit.hp <= 0) {
             blocks.splice(i, 1);
-            destroyBlockVisuals(hit);
+            destroyBlockVisuals(hit, currentTime);
             if (hit.is_powerup) processPowerup(hit.type, currentTime, hit.rect);
-            else { playBounceSound(); score += 10; }
+            else { playBounceSound(); addScore(10, currentTime); }
             checkLevelClear(currentTime);
         } else {
             playBounceSound();
             spawnHitParticles(hit);
-            if (!hit.is_powerup) hit.image = hit.hp === 2 ? genericBlock2 : genericBlock1;
+            if (!hit.is_powerup) hit.image = getBlockImage(hit.hp);
         }
         return false;
       }
@@ -979,24 +1067,16 @@ function update(currentTime) {
   if (ballTrail.length > 10) ballTrail.shift();
 
   let minSpeed = BASE_BALL_SPEED * 0.3 * (1 - (ballSpeedLevel * 0.1));
-  if (Math.abs(ball.dy) < minSpeed) {
-    ball.dy = ball.dy < 0 ? -minSpeed : minSpeed;
-  }
+  if (Math.abs(ball.dy) < minSpeed) ball.dy = ball.dy < 0 ? -minSpeed : minSpeed;
 
   ball.x += ball.dx * dt;
   ball.y += ball.dy * dt;
   ball.angle -= 0.06 * dt;
 
   if (ball.x <= 0) { 
-    ball.x = 0; 
-    ball.dx = Math.abs(ball.dx); 
-    playBounceSound(); 
-    leftWallHitTime = currentTime;
+    ball.x = 0; ball.dx = Math.abs(ball.dx); playBounceSound(); leftWallHitTime = currentTime;
   } else if (ball.x + ball.w >= 800) { 
-    ball.x = 800 - ball.w; 
-    ball.dx = -Math.abs(ball.dx); 
-    playBounceSound(); 
-    rightWallHitTime = currentTime;
+    ball.x = 800 - ball.w; ball.dx = -Math.abs(ball.dx); playBounceSound(); rightWallHitTime = currentTime;
   }
 
   if (ball.y <= 0) { ball.y = 0; ball.dy = Math.abs(ball.dy); playBounceSound(); }
@@ -1033,8 +1113,8 @@ function update(currentTime) {
         shakeTimer = currentTime + 300; let destroyed = 0;
         while (destroyed < 3 && blocks.length > 0) {
           const target = blocks.splice(Math.floor(Math.random() * blocks.length), 1)[0];
-          destroyBlockVisuals(target);
-          score += target.is_powerup ? 50 : 10; destroyed++;
+          destroyBlockVisuals(target, currentTime);
+          addScore(target.is_powerup ? 50 : 10, currentTime); destroyed++;
         }
         checkLevelClear(currentTime);
       }
@@ -1056,24 +1136,15 @@ function update(currentTime) {
     eBall.trail.push({ x: eBall.rect.x + eBall.rect.w / 2, y: eBall.rect.y + eBall.rect.h / 2 });
     if (eBall.trail.length > 8) eBall.trail.shift();
 
-    if (Math.abs(eBall.dy) < minSpeed) {
-      eBall.dy = eBall.dy < 0 ? -minSpeed : minSpeed;
-    }
+    if (Math.abs(eBall.dy) < minSpeed) eBall.dy = eBall.dy < 0 ? -minSpeed : minSpeed;
 
     eBall.rect.x += eBall.dx * dt; eBall.rect.y += eBall.dy * dt;
     eBall.angle -= 0.06 * dt;
 
     if (eBall.rect.x <= 0) { 
-      eBall.rect.x = 0; 
-      eBall.dx = Math.abs(eBall.dx); 
-      playBounceSound(); 
-      leftWallHitTime = currentTime;
-    } 
-    else if (eBall.rect.x + eBall.rect.w >= 800) { 
-      eBall.rect.x = 800 - eBall.rect.w; 
-      eBall.dx = -Math.abs(eBall.dx); 
-      playBounceSound(); 
-      rightWallHitTime = currentTime;
+      eBall.rect.x = 0; eBall.dx = Math.abs(eBall.dx); playBounceSound(); leftWallHitTime = currentTime;
+    } else if (eBall.rect.x + eBall.rect.w >= 800) { 
+      eBall.rect.x = 800 - eBall.rect.w; eBall.dx = -Math.abs(eBall.dx); playBounceSound(); rightWallHitTime = currentTime;
     }
     if (eBall.rect.y <= 0) { eBall.rect.y = 0; eBall.dy = Math.abs(eBall.dy); playBounceSound(); }
     if (eBall.rect.y + eBall.rect.h >= 600) return false;
@@ -1089,8 +1160,8 @@ function update(currentTime) {
           shakeTimer = currentTime + 300; let destroyed = 0;
           while (destroyed < 3 && blocks.length > 0) {
             const target = blocks.splice(Math.floor(Math.random() * blocks.length), 1)[0];
-            destroyBlockVisuals(target);
-            score += target.is_powerup ? 50 : 10; destroyed++;
+            destroyBlockVisuals(target, currentTime);
+            addScore(target.is_powerup ? 50 : 10, currentTime); destroyed++;
           }
           checkLevelClear(currentTime);
         }
@@ -1104,10 +1175,8 @@ function update(currentTime) {
 
     const exBall = { x: eBall.rect.x, y: eBall.rect.y, w: eBall.rect.w, h: eBall.rect.h, dx: eBall.dx, dy: eBall.dy };
     if (handleBlockCollision(exBall, blocks, currentTime)) {
-      eBall.dx = exBall.dx;
-      eBall.dy = exBall.dy;
+      eBall.dx = exBall.dx; eBall.dy = exBall.dy;
     }
-
     return true;
   });
 }
@@ -1122,10 +1191,7 @@ function render(currentTime) {
     pauseBtn.style.display = "none";
     ctx.fillStyle = "rgb(20, 22, 32)"; ctx.fillRect(0, 0, 800, 600);
     
-    stars.forEach(s => {
-      ctx.fillStyle = s.color;
-      ctx.fillRect(s.x, s.y, s.size, s.size);
-    });
+    stars.forEach(s => { ctx.fillStyle = s.color; ctx.fillRect(s.x, s.y, s.size, s.size); });
 
     const boxX = 35, boxY = 20, boxW = 730, boxH = 560;
     ctx.fillStyle = "rgb(28, 32, 48)"; ctx.fillRect(boxX, boxY, boxW, boxH);
@@ -1151,7 +1217,7 @@ function render(currentTime) {
     ctx.fillText("RULES & CONTROLS:", 70, 208);
     ctx.fillStyle = "rgb(230, 235, 245)"; ctx.font = "14px Arial";
     ctx.fillText("• Click/Tap canvas, press '1', or press 'Up Arrow' to fire missiles.", 70, 230);
-    ctx.fillText("• The grid falls endlessly. Destroy blocks before they hit your paddle line to survive.", 70, 248);
+    ctx.fillText("• Escalate Endlessly: Waves drop faster and blocks get stronger the longer you survive.", 70, 248);
     ctx.fillText("• PC: Mouse/WASD/Arrows | Mobile: Drag on screen.", 70, 265);
 
     ctx.fillStyle = "rgb(120, 200, 255)"; ctx.font = "bold 17px Arial"; ctx.textAlign = "center";
@@ -1186,10 +1252,7 @@ function render(currentTime) {
 
   ctx.fillStyle = "rgb(30, 30, 30)"; ctx.fillRect(0, 0, 800, 600);
 
-  stars.forEach(s => {
-    ctx.fillStyle = s.color;
-    ctx.fillRect(s.x, s.y, s.size, s.size);
-  });
+  stars.forEach(s => { ctx.fillStyle = s.color; ctx.fillRect(s.x, s.y, s.size, s.size); });
 
   let leftGlow = Math.max(0, 1 - (currentTime - leftWallHitTime) / 300);
   let rightGlow = Math.max(0, 1 - (currentTime - rightWallHitTime) / 300);
@@ -1200,8 +1263,7 @@ function render(currentTime) {
     let lGrad = ctx.createLinearGradient(3, 0, 15, 0);
     lGrad.addColorStop(0, `rgba(100, 200, 255, ${leftGlow * 0.4})`);
     lGrad.addColorStop(1, `rgba(100, 200, 255, 0)`);
-    ctx.fillStyle = lGrad;
-    ctx.fillRect(3, 0, 12, 600);
+    ctx.fillStyle = lGrad; ctx.fillRect(3, 0, 12, 600);
   }
 
   ctx.fillStyle = `rgba(100, 200, 255, ${0.15 + rightGlow * 0.6})`;
@@ -1210,8 +1272,7 @@ function render(currentTime) {
     let rGrad = ctx.createLinearGradient(797, 0, 785, 0);
     rGrad.addColorStop(0, `rgba(100, 200, 255, ${rightGlow * 0.4})`);
     rGrad.addColorStop(1, `rgba(100, 200, 255, 0)`);
-    ctx.fillStyle = rGrad;
-    ctx.fillRect(785, 0, 12, 600);
+    ctx.fillStyle = rGrad; ctx.fillRect(785, 0, 12, 600);
   }
 
   if (gameState === "PLAYING" || gameState === "PAUSED") {
@@ -1221,14 +1282,15 @@ function render(currentTime) {
     } else ctx.fillRect(paddle.x, paddle.y, paddle.w, paddle.h);
 
     if (sharkMissiles > 0) {
-      ctx.fillStyle = "rgb(255, 100, 50)";
       const spacing = 15;
       const startX = paddle.x + paddle.w / 2 - ((sharkMissiles - 1) * spacing) / 2;
       for (let i = 0; i < sharkMissiles; i++) {
-        ctx.fillRect(startX + (i * spacing) - 2, paddle.y - 12, 4, 12);
-        ctx.fillStyle = "rgb(255, 200, 100)";
-        ctx.fillRect(startX + (i * spacing) - 1, paddle.y - 12 + 10, 2, 4); 
-        ctx.fillStyle = "rgb(255, 100, 50)";
+        if (rocketImg.complete && rocketImg.naturalWidth !== 0) {
+          ctx.drawImage(rocketImg, startX + (i * spacing) - 7, paddle.y - 24, 14, 28);
+        } else {
+          ctx.fillStyle = "rgb(255, 100, 50)"; ctx.fillRect(startX + (i * spacing) - 2, paddle.y - 12, 4, 12);
+          ctx.fillStyle = "rgb(255, 200, 100)"; ctx.fillRect(startX + (i * spacing) - 1, paddle.y - 12 + 10, 2, 4); 
+        }
       }
     }
 
@@ -1239,24 +1301,25 @@ function render(currentTime) {
       ctx.fill(); ctx.restore();
     }
 
-    ctx.fillStyle = "rgb(255, 100, 50)";
-    activeMissiles.forEach(m => ctx.fillRect(m.x, m.y, m.w, m.h));
+    activeMissiles.forEach(m => {
+      if (rocketImg.complete && rocketImg.naturalWidth !== 0) {
+        ctx.drawImage(rocketImg, m.x - 5, m.y - 6, 14, 28);
+      } else {
+        ctx.fillStyle = "rgb(255, 100, 50)"; ctx.fillRect(m.x, m.y, m.w, m.h);
+      }
+    });
 
     const timeSinceDrop = currentTime - lastDropTime;
-    const isBlinking = timeSinceDrop > (dropInterval - 3000) && rowsRemaining > 0 && gameState === "PLAYING";
+    const isBlinking = timeSinceDrop > (dropInterval - 3000) && gameState === "PLAYING";
     const blinkAlpha = isBlinking ? Math.abs(Math.sin(currentTime / 100.0)) * 0.4 : 0;
 
     dirtBlocks.forEach(d => ctx.drawImage(dirtSurface, d.x, d.y));
 
     blocks.forEach(b => {
       if (b.is_powerup) {
-        ctx.fillStyle = b.color;
-        ctx.fillRect(b.rect.x, b.rect.y, b.rect.w, b.rect.h);
-        
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
-        ctx.lineWidth = 2;
+        ctx.fillStyle = b.color; ctx.fillRect(b.rect.x, b.rect.y, b.rect.w, b.rect.h);
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.4)"; ctx.lineWidth = 2;
         ctx.strokeRect(b.rect.x + 2, b.rect.y + 2, b.rect.w - 4, b.rect.h - 4);
-        
         ctx.fillStyle = "rgba(255, 255, 255, 0.25)";
         ctx.fillRect(b.rect.x + b.rect.w/2 - 6, b.rect.y + b.rect.h/2 - 6, 12, 12);
       } else {
@@ -1264,15 +1327,12 @@ function render(currentTime) {
       }
 
       if (isBlinking) {
-        ctx.fillStyle = `rgba(255, 255, 255, ${blinkAlpha})`;
-        ctx.fillRect(b.rect.x, b.rect.y, b.rect.w, b.rect.h);
+        ctx.fillStyle = `rgba(255, 255, 255, ${blinkAlpha})`; ctx.fillRect(b.rect.x, b.rect.y, b.rect.w, b.rect.h);
       }
     });
 
     particles.forEach(p => {
-      ctx.globalAlpha = Math.max(0, p.life);
-      ctx.fillStyle = p.color;
-      ctx.fillRect(p.x, p.y, p.size, p.size);
+      ctx.globalAlpha = Math.max(0, p.life); ctx.fillStyle = p.color; ctx.fillRect(p.x, p.y, p.size, p.size);
     });
     ctx.globalAlpha = 1.0;
 
@@ -1288,12 +1348,8 @@ function render(currentTime) {
       ctx.save(); ctx.translate(ball.x + ball.w / 2, ball.y + ball.h / 2);
       ctx.rotate(ball.angle); ctx.drawImage(ballSurface, -ball.w / 2, -ball.h / 2); ctx.restore();
     } else {
-      ctx.save(); 
-      ctx.globalAlpha = 0.35;
-      ctx.translate(ball.x + ball.w / 2, ball.y + ball.h / 2);
-      ctx.rotate(ball.angle); 
-      ctx.drawImage(cloakedBallSurface, -ball.w / 2, -ball.h / 2); 
-      ctx.restore();
+      ctx.save(); ctx.globalAlpha = 0.35; ctx.translate(ball.x + ball.w / 2, ball.y + ball.h / 2);
+      ctx.rotate(ball.angle); ctx.drawImage(cloakedBallSurface, -ball.w / 2, -ball.h / 2); ctx.restore();
     }
 
     extraBalls.forEach(eBall => {
@@ -1309,12 +1365,8 @@ function render(currentTime) {
         ctx.save(); ctx.translate(eBall.rect.x + eBall.rect.w / 2, eBall.rect.y + eBall.rect.h / 2);
         ctx.rotate(eBall.angle); ctx.drawImage(ballSurface, -eBall.rect.w / 2, -eBall.rect.h / 2); ctx.restore();
       } else {
-        ctx.save(); 
-        ctx.globalAlpha = 0.35;
-        ctx.translate(eBall.rect.x + eBall.rect.w / 2, eBall.rect.y + eBall.rect.h / 2);
-        ctx.rotate(eBall.angle); 
-        ctx.drawImage(cloakedBallSurface, -eBall.rect.w / 2, -eBall.rect.h / 2); 
-        ctx.restore();
+        ctx.save(); ctx.globalAlpha = 0.35; ctx.translate(eBall.rect.x + eBall.rect.w / 2, eBall.rect.y + eBall.rect.h / 2);
+        ctx.rotate(eBall.angle); ctx.drawImage(cloakedBallSurface, -eBall.rect.w / 2, -eBall.rect.h / 2); ctx.restore();
       }
     });
 
@@ -1323,16 +1375,22 @@ function render(currentTime) {
     floatingTexts.forEach(ft => {
       ctx.globalAlpha = Math.max(0, ft.life);
       ctx.fillStyle = ft.color;
-      ctx.strokeStyle = `rgba(0, 0, 0, ${Math.max(0, ft.life)})`;
-      ctx.lineWidth = 3;
-      ctx.strokeText(ft.text, ft.x, ft.y);
-      ctx.fillText(ft.text, ft.x, ft.y);
+      ctx.strokeStyle = `rgba(0, 0, 0, ${Math.max(0, ft.life)})`; ctx.lineWidth = 3;
+      ctx.strokeText(ft.text, ft.x, ft.y); ctx.fillText(ft.text, ft.x, ft.y);
     });
     ctx.globalAlpha = 1.0;
 
+    // UI Overlay
     ctx.fillStyle = "rgb(255, 255, 255)"; ctx.font = "bold 26px Arial"; ctx.textAlign = "left";
     ctx.fillText(`Lives: ${lives}`, 20, 40);
+    ctx.textAlign = "center"; ctx.fillText(`WAVE: ${currentWave}`, 400, 40);
     ctx.textAlign = "right"; ctx.fillText(`Score: ${score}`, 780, 40);
+    
+    if (currentTime < scoreMultiplierTimer) {
+      let sec = Math.ceil((scoreMultiplierTimer - currentTime)/1000);
+      ctx.fillStyle = "rgb(255, 200, 100)"; ctx.font = "bold 18px Arial";
+      ctx.fillText(`[2x SURGE: ${sec}s]`, 780, 65);
+    }
 
     const currentActive = [];
     if (currentTime < walrusTimer) currentActive.push('walrus');
@@ -1365,8 +1423,8 @@ function render(currentTime) {
     });
 
     let warningIndex = 0;
-    if (currentTime < harderMsgTimer) {
-      drawWavyTextCentered(ctx, "A Little Harder...", 400, 90 + warningIndex * 36, currentTime, "rgb(255, 80, 80)");
+    if (currentTime < waveMsgTimer) {
+      drawWavyTextCentered(ctx, "WAVE CLEARED! (+SPEED)", 400, 90 + warningIndex * 36, currentTime, "rgb(150, 255, 150)");
       warningIndex++;
     }
 
@@ -1394,13 +1452,13 @@ function render(currentTime) {
       ctx.strokeStyle = "rgb(40, 90, 140)"; ctx.lineWidth = 2; ctx.strokeRect(boxX + 4, boxY + 4, boxW - 8, boxH - 8);
 
       ctx.fillStyle = "rgb(255, 200, 0)"; ctx.font = "bold 56px Impact"; ctx.textAlign = "center";
-      ctx.fillText("PAUSED", 400, 92);
+      ctx.fillText("PAUSED", 400, 82);
       
       // LEFT COLUMN: GUIDE
       ctx.fillStyle = "rgb(180, 215, 255)"; ctx.font = "bold 18px Arial"; ctx.textAlign = "center";
-      ctx.fillText("HAZARD & POWER-UP GUIDE", 230, 140);
+      ctx.fillText("HAZARD & POWER-UP GUIDE", 230, 130);
       
-      let startY = 170;
+      let startY = 160;
       Object.keys(iconDescriptions).forEach(key => {
         if (statusIcons[key]) {
           ctx.drawImage(statusIcons[key], 50, startY);
@@ -1412,61 +1470,63 @@ function render(currentTime) {
 
       // RIGHT COLUMN: SHOP
       ctx.fillStyle = "rgb(180, 215, 255)"; ctx.font = "bold 18px Arial"; ctx.textAlign = "center";
-      ctx.fillText("UPGRADE SHOP", 580, 140);
+      ctx.fillText("UPGRADE SHOP", 580, 130);
       
       ctx.fillStyle = "rgb(255, 255, 255)"; ctx.font = "16px Arial";
-      ctx.fillText(`Available Points: ${score}`, 580, 170);
+      ctx.fillText(`Available Points: ${score}`, 580, 155);
 
-      ctx.fillStyle = "rgb(40, 45, 60)";
-      roundRect(ctx, 430, 190, 300, 80, 8, true, false);
-      ctx.strokeStyle = "rgb(100, 150, 255)"; ctx.lineWidth = 2;
-      roundRect(ctx, 430, 190, 300, 80, 8, false, true);
-
-      ctx.fillStyle = "rgb(255, 255, 255)"; ctx.font = "bold 16px Arial"; ctx.textAlign = "left";
-      ctx.fillText("Weaker Bricks", 445, 215);
+      let shopY = 170;
+      const items = getShopItems();
       
-      let cost = blockHpLevel === 0 ? 1000 : (blockHpLevel === 1 ? 3000 : "MAX");
-      let desc = blockHpLevel === 0 ? "Blocks start with 2 HP" : (blockHpLevel === 1 ? "Blocks start with 1 HP" : "Blocks start with 1 HP (Maxed)");
-      ctx.font = "13px Arial"; ctx.fillStyle = "rgb(200, 200, 200)";
-      ctx.fillText(desc, 445, 235);
-      ctx.fillStyle = "rgb(255, 255, 100)";
-      ctx.fillText(cost === "MAX" ? "" : `Cost: ${cost} pts`, 445, 255);
+      items.forEach(item => {
+        ctx.fillStyle = "rgb(40, 45, 60)";
+        roundRect(ctx, 410, shopY, 330, 65, 8, true, false);
+        ctx.strokeStyle = "rgb(100, 150, 255)"; ctx.lineWidth = 2;
+        roundRect(ctx, 410, shopY, 330, 65, 8, false, true);
 
-      let btnColor = (score >= cost && cost !== "MAX") ? "rgb(100, 200, 100)" : "rgb(100, 100, 100)";
-      let isHover = gameState === "PAUSED" && mouseX >= 630 && mouseX <= 710 && mouseY >= 210 && mouseY <= 250;
-      if (isHover && cost !== "MAX" && score >= cost) btnColor = "rgb(150, 255, 150)";
-      
-      ctx.fillStyle = cost === "MAX" ? "rgb(80, 80, 80)" : btnColor;
-      roundRect(ctx, 630, 210, 80, 40, 4, true, false);
-      ctx.fillStyle = "rgb(0, 0, 0)"; ctx.font = "bold 14px Arial"; ctx.textAlign = "center";
-      ctx.fillText(cost === "MAX" ? "SOLD OUT" : "BUY", 670, 235);
+        ctx.fillStyle = "rgb(255, 255, 255)"; ctx.font = "bold 15px Arial"; ctx.textAlign = "left";
+        ctx.fillText(item.name, 425, shopY + 22);
 
-      ctx.fillStyle = "rgb(40, 45, 60)";
-      roundRect(ctx, 430, 280, 300, 80, 8, true, false);
-      ctx.strokeStyle = "rgb(100, 150, 255)"; ctx.lineWidth = 2;
-      roundRect(ctx, 430, 280, 300, 80, 8, false, true);
-
-      ctx.fillStyle = "rgb(255, 255, 255)"; ctx.font = "bold 16px Arial"; ctx.textAlign = "left";
-      ctx.fillText("Slower Ball", 445, 305);
-      
-      let cost2 = ballSpeedLevel === 0 ? 1500 : (ballSpeedLevel === 1 ? 3000 : (ballSpeedLevel === 2 ? 5000 : "MAX"));
-      let desc2 = ballSpeedLevel === 0 ? "Slows ball by 10%" : (ballSpeedLevel === 1 ? "Slows ball by 20%" : (ballSpeedLevel === 2 ? "Slows ball by 30%" : "Slows ball by 30% (Maxed)"));
-      ctx.font = "13px Arial"; ctx.fillStyle = "rgb(200, 200, 200)";
-      ctx.fillText(desc2, 445, 325);
-      ctx.fillStyle = "rgb(255, 255, 100)";
-      ctx.fillText(cost2 === "MAX" ? "" : `Cost: ${cost2} pts`, 445, 345);
-
-      let btnColor2 = (score >= cost2 && cost2 !== "MAX") ? "rgb(100, 200, 100)" : "rgb(100, 100, 100)";
-      let isHover2 = gameState === "PAUSED" && mouseX >= 630 && mouseX <= 710 && mouseY >= 300 && mouseY <= 340;
-      if (isHover2 && cost2 !== "MAX" && score >= cost2) btnColor2 = "rgb(150, 255, 150)";
-      
-      ctx.fillStyle = cost2 === "MAX" ? "rgb(80, 80, 80)" : btnColor2;
-      roundRect(ctx, 630, 300, 80, 40, 4, true, false);
-      ctx.fillStyle = "rgb(0, 0, 0)"; ctx.font = "bold 14px Arial"; ctx.textAlign = "center";
-      ctx.fillText(cost2 === "MAX" ? "SOLD OUT" : "BUY", 670, 325);
+        let lvl = item.level;
+        let cost = item.isConsumable ? item.costs[0] : (lvl < item.maxLevel ? item.costs[lvl] : "MAX");
+        let desc = item.descs[Math.min(lvl, item.descs.length - 1)];
+        let btnText = "BUY";
+        let btnColor = "rgb(100, 100, 100)";
+        
+        if (item.id === 'score_surge' && currentTime < scoreMultiplierTimer) {
+           cost = "ACTIVE";
+           btnText = "ON";
+           btnColor = "rgb(100, 200, 255)";
+        } else if (cost === "MAX") {
+           btnText = "MAX";
+           btnColor = "rgb(80, 80, 80)";
+        } else if (score >= cost) {
+           btnColor = "rgb(100, 200, 100)";
+           let isHover = gameState === "PAUSED" && mouseX >= 650 && mouseX <= 730 && mouseY >= shopY + 12 && mouseY <= shopY + 52;
+           if (isHover) btnColor = "rgb(150, 255, 150)";
+        }
+        
+        ctx.font = "12px Arial"; ctx.fillStyle = "rgb(200, 200, 200)";
+        ctx.fillText(desc, 425, shopY + 40);
+        ctx.fillStyle = "rgb(255, 255, 100)";
+        
+        if (typeof cost === 'number') {
+           ctx.fillText(`Cost: ${cost} pts`, 425, shopY + 56);
+        } else if (cost === "ACTIVE") {
+           let sec = Math.ceil((scoreMultiplierTimer - currentTime)/1000);
+           ctx.fillText(`Active: ${sec}s`, 425, shopY + 56);
+        }
+        
+        ctx.fillStyle = btnColor;
+        roundRect(ctx, 650, shopY + 12, 80, 40, 4, true, false);
+        ctx.fillStyle = "rgb(0, 0, 0)"; ctx.font = "bold 14px Arial"; ctx.textAlign = "center";
+        ctx.fillText(btnText, 690, shopY + 37);
+        
+        shopY += 70;
+      });
 
       ctx.fillStyle = "rgb(100, 255, 100)"; ctx.font = "bold 18px Arial"; ctx.textAlign = "center";
-      ctx.fillText("Press SPACE / Resume Button", 400, 532);
+      ctx.fillText("Press SPACE / Resume Button", 400, 555);
     }
   } else if (gameState === "GAME_OVER") {
     pauseBtn.style.display = "none";
