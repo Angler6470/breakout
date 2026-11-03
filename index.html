@@ -32,7 +32,7 @@
       height: 100vh;
     }
     #gameCanvas {
-      background-color: rgb(30, 30, 30);
+      background-color: rgb(15, 15, 25);
       box-shadow: 0 0 25px rgba(0, 0, 0, 0.85);
       border: 2px solid #333;
       max-width: 100vw;
@@ -57,7 +57,7 @@
       z-index: 10;
     }
     #pauseBtn {
-      top: 15px;
+      top: 25px;
       right: 15px;
       width: 70px;
       height: 38px;
@@ -143,42 +143,42 @@ function playPowerupSound() {
   osc2.stop(now + 0.28);
 }
 
-// --- CRITTER MAP ---
-const critterTypes = [
-  { name: "aggressive-shark.png", color: "rgb(60, 90, 110)" }, 
-  { name: "armored-walrus.png", color: "rgb(160, 220, 240)" }, 
-  { name: "bandit-raccoon.png", color: "rgb(80, 80, 80)" }, 
-  { name: "basic-blueberry.png", color: "rgb(60, 100, 255)" }, 
-  { name: "bulldog-retriever.png", color: "rgb(130, 90, 50)" }, 
-  { name: "charging-gorilla.png", color: "rgb(40, 40, 40)" }, 
-  { name: "heavy-pumpkin.png", color: "rgb(255, 120, 20)" }, 
-  { name: "smashing-stegosaurus.png", color: "rgb(80, 200, 80)" }, 
-  { name: "sneaky-t-rex.png", color: "rgb(40, 120, 40)" }, 
-  { name: "stampeding-elephant.png", color: "rgb(170, 170, 180)" }, 
-  { name: "tough-tomato.png", color: "rgb(240, 50, 50)" }, 
-  { name: "treading-triceratops.png", color: "rgb(220, 180, 90)" } 
+// --- POWER-UP MAPPING ---
+const powerupTypes = [
+  { name: "missile", color: "rgb(60, 90, 110)" }, 
+  { name: "shield", color: "rgb(160, 220, 240)" }, 
+  { name: "invert", color: "rgb(80, 80, 80)" }, 
+  { name: "extra-life", color: "rgb(60, 100, 255)" }, 
+  { name: "dirt", color: "rgb(130, 90, 50)" }, 
+  { name: "bomb", color: "rgb(40, 40, 40)" }, 
+  { name: "quake", color: "rgb(255, 120, 20)" }, 
+  { name: "shatter", color: "rgb(80, 200, 80)" }, 
+  { name: "cloak", color: "rgb(40, 120, 40)" }, 
+  { name: "multiball", color: "rgb(170, 170, 180)" }, 
+  { name: "megaball", color: "rgb(240, 50, 50)" }, 
+  { name: "drift", color: "rgb(220, 180, 90)" } 
 ];
 
 const iconFilenames = {
-  walrus: 'shield.png',
-  tomato: 'large_ball.png',
-  shark: 'missiles_loaded.png',
-  raccoon: 'inverted_controls.png',
-  stego: 'shattered_paddle.png',
-  trex: 'invisible_ball.png',
-  triceratops: 'momentum_drift.png',
-  pumpkin: 'seismic_paddle.png'
+  shield: 'shield.png',
+  megaball: 'large_ball.png',
+  missile: 'missiles_loaded.png',
+  invert: 'inverted_controls.png',
+  shatter: 'shattered_paddle.png',
+  cloak: 'invisible_ball.png',
+  drift: 'momentum_drift.png',
+  quake: 'seismic_paddle.png'
 };
 
 const iconDescriptions = {
-  walrus: 'Protective barrier forms underneath the paddle',
-  tomato: 'Enlarges the ball to plow through multiple blocks',
-  shark: 'Loads active missiles into paddle [Press 1 to fire]',
-  raccoon: 'Inverts paddle movement controls horizontally',
-  stego: 'Fractures the paddle into 3 separated segments',
-  trex: 'Cloaks the ball, revealing only its path trail',
-  triceratops: 'Forces continuous sideways momentum drift',
-  pumpkin: 'Heavy paddle triggers earthquakes that break blocks'
+  shield: 'Protective barrier forms underneath the paddle',
+  megaball: 'Enlarges the ball to plow through multiple blocks',
+  missile: 'Loads active missiles into paddle [Press 1 to fire]',
+  invert: 'Inverts paddle movement controls horizontally',
+  shatter: 'Splits paddle into 2 halves with a perilous central gap',
+  cloak: 'Cloaks the ball, revealing only its path trail',
+  drift: 'Forces continuous sideways momentum drift',
+  quake: 'Heavy paddle triggers earthquakes that break blocks'
 };
 
 const statusIcons = {};
@@ -205,8 +205,15 @@ Object.keys(iconFilenames).forEach(key => {
   };
 });
 
+// IMAGES
 const rocketImg = new Image();
 rocketImg.src = 'images/rocket.png';
+
+const bgImage1 = new Image();
+bgImage1.src = 'images/background-1.jpg';
+
+const bgImage2 = new Image();
+bgImage2.src = 'images/background-2.jpg';
 
 function roundRect(ctx, x, y, width, height, radius, fill, stroke) {
   ctx.beginPath();
@@ -240,6 +247,33 @@ function drawWavyTextCentered(ctx, text, centerX, centerY, currentTime, color) {
   ctx.restore();
 }
 
+function drawBackground(currentTime) {
+  const isLevel2 = currentWave % 2 === 0;
+  const bgImage = isLevel2 ? bgImage2 : bgImage1;
+  
+  if (bgImage.complete && bgImage.naturalWidth !== 0) {
+    if (isLevel2) {
+      let panX = Math.sin(currentTime / 3000) * 15;
+      let panY = Math.cos(currentTime / 4000) * 10;
+      ctx.drawImage(bgImage, -20 + panX, -20 + panY, 840, 640);
+      
+      ctx.fillStyle = "rgba(255, 120, 30, 0.6)";
+      for(let i = 0; i < 40; i++) {
+        let x = ((i * 37) + (Math.sin(currentTime / 1000 + i) * 20)) % 800;
+        let y = 600 - ((currentTime / (15 + i%10) + i*40) % 650);
+        ctx.fillRect(x, y, 2 + (i%3), 2 + (i%3));
+      }
+    } else {
+      ctx.drawImage(bgImage, 0, 0, 800, 600);
+    }
+    ctx.fillStyle = "rgba(15, 15, 25, 0.75)"; 
+    ctx.fillRect(0, 0, 800, 600);
+  } else {
+    ctx.fillStyle = "rgb(30, 30, 30)"; 
+    ctx.fillRect(0, 0, 800, 600);
+  }
+}
+
 // --- GAME STATE & ESCALATION VARIABLES ---
 let score = 0, lives = 3;
 let currentWave = 1;
@@ -255,11 +289,16 @@ let gameOverY = -120;
 let ballTrail = [];
 let showingHelp = false;
 
-let walrusTimer = 0, tomatoTimer = 0, raccoonTimer = 0;
-let bulldogTimer = 0, stegoTimer = 0, trexTimer = 0;
-let triceratopsTimer = 0, pumpkinTimer = 0;
-let shakeTimer = 0, elephantMsgTimer = 0, waveMsgTimer = 0;
-let triceratopsDrift = 0, sharkMissiles = 0;
+// Time Management
+let pauseStartTime = 0;
+let shopRejectIdx = -1;
+let shopRejectTimer = 0;
+
+let shieldTimer = 0, megaBallTimer = 0, invertTimer = 0;
+let dirtTimer = 0, shatterTimer = 0, cloakTimer = 0;
+let driftTimer = 0, quakeTimer = 0;
+let shakeTimer = 0, multiBallMsgTimer = 0, waveMsgTimer = 0;
+let paddleDrift = 0, paddleDriftOffset = 0, missileCount = 0;
 
 let leftWallHitTime = 0, rightWallHitTime = 0;
 let activeMissiles = [], dirtBlocks = [], extraBalls = [];
@@ -346,8 +385,6 @@ function createCloakedBallCanvas(size) {
 let ballSurface = createBallCanvas(ballSize);
 let cloakedBallSurface = createCloakedBallCanvas(ballSize);
 
-// DYNAMIC ESCALATING BLOCK GENERATOR
-const blockImages = {};
 function getBlockImage(hp) {
   if (blockImages[hp]) return blockImages[hp];
   
@@ -361,7 +398,6 @@ function getBlockImage(hp) {
     x.strokeStyle = "rgb(80, 80, 90)";
     x.lineWidth = 3;
     x.strokeRect(0, 0, blockW, blockH);
-    // Industrial Rivets
     x.fillStyle = "black";
     x.fillRect(5, 5, 4, 4); x.fillRect(33, 5, 4, 4);
     x.fillRect(5, 33, 4, 4); x.fillRect(33, 33, 4, 4);
@@ -369,13 +405,12 @@ function getBlockImage(hp) {
     return c;
   }
 
-  // HP Color mapping logic (scales infinitely)
   const colors = {
-    1: ["rgb(70, 120, 160)", "rgb(30, 80, 130)"],     // Dark blue
-    2: ["rgb(85, 135, 180)", "rgb(40, 90, 140)"],     // Blue
-    3: ["rgb(100, 150, 200)", "rgb(50, 100, 150)"],    // Bright blue
-    4: ["rgb(140, 90, 180)", "rgb(90, 40, 130)"],     // Purple
-    5: ["rgb(200, 70, 70)", "rgb(140, 30, 30)"]       // Red (used for 5+)
+    1: ["rgb(70, 120, 160)", "rgb(30, 80, 130)"],     
+    2: ["rgb(85, 135, 180)", "rgb(40, 90, 140)"],     
+    3: ["rgb(100, 150, 200)", "rgb(50, 100, 150)"],    
+    4: ["rgb(140, 90, 180)", "rgb(90, 40, 130)"],     
+    5: ["rgb(200, 70, 70)", "rgb(140, 30, 30)"]       
   };
   
   const useHp = Math.min(hp, 5);
@@ -414,13 +449,16 @@ dctx.strokeStyle = "rgb(80, 50, 20)";
 dctx.lineWidth = 3;
 dctx.strokeRect(0, 0, blockW, blockH);
 
-// SCORE HELPER
 function addScore(amount, currentTime) {
   const mult = (currentTime < scoreMultiplierTimer) ? 2 : 1;
   score += (amount * mult);
 }
 
-// SHOP DEFINITIONS
+function calcDropInterval() {
+  const dropIntervalBase = Math.max(8000, 25000 - (currentWave * 750));
+  return dropIntervalBase + (gridDelayLevel * 3000);
+}
+
 const getShopItems = () => [
   {
     id: 'weaker_bricks',
@@ -464,8 +502,7 @@ const getShopItems = () => [
     maxLevel: 3,
     action: () => {
       gridDelayLevel++;
-      dropInterval += 3000;
-      lastDropTime += 3000;
+      dropInterval = calcDropInterval(); // Changing the interval auto-expands the visual countdown timer instantly
     }
   },
   {
@@ -486,25 +523,25 @@ const getShopItems = () => [
     descs: ['2x Points for the next 45 seconds', '2x Points for the next 45 seconds', '2x Points for the next 45 seconds'],
     level: 0,
     maxLevel: 999,
-    action: (currentTime) => {
-      scoreMultiplierTimer = currentTime + 45000;
+    action: (actionTime) => {
+      scoreMultiplierTimer = actionTime + 45000;
     },
     isConsumable: true
   }
 ];
 
-function getRandomCritter(row) {
-  const weights = critterTypes.map(c => {
-    if (c.name === "basic-blueberry.png") return row < 2 ? 70 : (row < 4 ? 20 : 10);
+function getRandomPowerup(row) {
+  const weights = powerupTypes.map(c => {
+    if (c.name === "extra-life") return row < 2 ? 70 : (row < 4 ? 20 : 10);
     return 10;
   });
   const totalWeight = weights.reduce((a, b) => a + b, 0);
   let rand = Math.random() * totalWeight;
-  for (let i = 0; i < critterTypes.length; i++) {
-    if (rand < weights[i]) return critterTypes[i];
+  for (let i = 0; i < powerupTypes.length; i++) {
+    if (rand < weights[i]) return powerupTypes[i];
     rand -= weights[i];
   }
-  return critterTypes[0];
+  return powerupTypes[0];
 }
 
 function buildLevel() {
@@ -520,17 +557,16 @@ function buildLevel() {
   const list = [];
   let index = 0;
   
-  // Escalating Math calculation
   let baseHp = 3 + Math.floor(currentWave / 5);
   let steelChance = Math.max(0, Math.min(0.25, (currentWave - 5) * 0.02));
 
   for (let row = 0; row < 6; row++) {
     for (let col = 0; col < 16; col++) {
-      const rect = { x: col * (blockW + 5) + 24, y: row * (blockH + 5) + 50, w: blockW, h: blockH };
+      const rect = { x: col * (blockW + 5) + 24, y: row * (blockH + 5) + 65, w: blockW, h: blockH };
       
       if (specialIndices.has(index)) {
-        const critter = getRandomCritter(row);
-        list.push({ rect, is_powerup: true, type: critter.name, color: critter.color, hp: 1 });
+        const powerup = getRandomPowerup(row);
+        list.push({ rect, is_powerup: true, type: powerup.name, color: powerup.color, hp: 1 });
       } else if (Math.random() < steelChance && row < 3) {
         list.push({ rect, is_powerup: false, type: 'steel', hp: 'steel', image: getBlockImage('steel') });
       } else {
@@ -541,12 +577,6 @@ function buildLevel() {
     }
   }
   return list;
-}
-
-function calcDropInterval() {
-  // Starts at 25s, shrinks by 0.75s per wave down to a strict 8s minimum
-  const dropIntervalBase = Math.max(8000, 25000 - (currentWave * 750));
-  return dropIntervalBase + (gridDelayLevel * 3000);
 }
 
 function startNewGame() {
@@ -563,10 +593,10 @@ function startNewGame() {
   ball.y = paddle.y - ballSize - 5;
   ball.dx = BASE_BALL_SPEED; ball.dy = -BASE_BALL_SPEED;
   ballTrail = [];
-  walrusTimer = 0; tomatoTimer = 0; raccoonTimer = 0;
-  bulldogTimer = 0; stegoTimer = 0; trexTimer = 0;
-  triceratopsTimer = 0; pumpkinTimer = 0; waveMsgTimer = 0;
-  sharkMissiles = 0; activeMissiles = []; dirtBlocks = []; extraBalls = [];
+  shieldTimer = 0; megaBallTimer = 0; invertTimer = 0;
+  dirtTimer = 0; shatterTimer = 0; cloakTimer = 0;
+  driftTimer = 0; quakeTimer = 0; waveMsgTimer = 0; shopRejectTimer = 0;
+  paddleDriftOffset = 0; missileCount = 0; activeMissiles = []; dirtBlocks = []; extraBalls = [];
   particles = []; floatingTexts = [];
   leftWallHitTime = 0; rightWallHitTime = 0; showingHelp = false;
   Object.keys(iconAnimState).forEach(k => iconAnimState[k].wasActive = false);
@@ -576,16 +606,41 @@ function startNewGame() {
 }
 
 function fireMissile() {
-  if (gameState === "PLAYING" && sharkMissiles > 0) {
-    sharkMissiles--;
+  if (gameState === "PLAYING" && missileCount > 0) {
+    missileCount--;
     activeMissiles.push({ x: paddle.x + paddle.w / 2 - 2, y: paddle.y - 15, w: 4, h: 15 });
     playBounceSound();
   }
 }
 
 function togglePause() {
-  if (gameState === "PLAYING") gameState = "PAUSED";
-  else if (gameState === "PAUSED") gameState = "PLAYING";
+  const now = performance.now();
+  if (gameState === "PLAYING") {
+    gameState = "PAUSED";
+    pauseStartTime = now;
+  } else if (gameState === "PAUSED") {
+    gameState = "PLAYING";
+    const timePaused = now - pauseStartTime;
+    
+    // Shift all active timers forward so nothing drains while in the shop
+    lastDropTime += timePaused;
+    shieldTimer += timePaused;
+    megaBallTimer += timePaused;
+    invertTimer += timePaused;
+    dirtTimer += timePaused;
+    shatterTimer += timePaused;
+    cloakTimer += timePaused;
+    driftTimer += timePaused;
+    quakeTimer += timePaused;
+    multiBallMsgTimer += timePaused;
+    waveMsgTimer += timePaused;
+    scoreMultiplierTimer += timePaused;
+    shopRejectTimer += timePaused;
+    leftWallHitTime += timePaused;
+    rightWallHitTime += timePaused;
+    
+    lastFrameTime = now;
+  }
 }
 
 function destroyBlockVisuals(block, currentTime) {
@@ -633,11 +688,11 @@ function spawnHitParticles(block) {
 
 function processPowerup(blockType, currentTime, blockRect) {
   playPowerupSound();
-  if (blockType === "basic-blueberry.png") {
+  if (blockType === "extra-life") {
     lives += 1;
-  } else if (blockType === "armored-walrus.png") {
-    walrusTimer = currentTime + 10000;
-  } else if (blockType === "tough-tomato.png") {
+  } else if (blockType === "shield") {
+    shieldTimer = currentTime + 10000;
+  } else if (blockType === "megaball") {
     ballSize = Math.floor(ballSize * 1.3);
     const cx = ball.x + ball.w / 2; const cy = ball.y + ball.h / 2;
     ball.w = ballSize; ball.h = ballSize;
@@ -649,33 +704,33 @@ function processPowerup(blockType, currentTime, blockRect) {
     });
     ballSurface = createBallCanvas(ballSize);
     cloakedBallSurface = createCloakedBallCanvas(ballSize);
-    tomatoTimer = currentTime + 10000;
-  } else if (blockType === "aggressive-shark.png") {
-    sharkMissiles += 3;
+    megaBallTimer = currentTime + 10000;
+  } else if (blockType === "missile") {
+    missileCount += 3;
     floatingTexts.push({
       x: paddle.x + paddle.w / 2,
       y: paddle.y - 15,
-      text: "MISSILES LOADED! (CLICK TO FIRE)",
+      text: "MISSILES LOADED!",
       color: "rgb(255, 100, 50)",
       life: 2.0,
       vy: -1.0
     });
-  } else if (blockType === "bandit-raccoon.png") {
-    raccoonTimer = currentTime + 5000;
-  } else if (blockType === "bulldog-retriever.png") {
-    bulldogTimer = currentTime + 10000;
+  } else if (blockType === "invert") {
+    invertTimer = currentTime + 5000;
+  } else if (blockType === "dirt") {
+    dirtTimer = currentTime + 10000;
     dirtBlocks = [];
     for (let i = 0; i < 5; i++) {
       dirtBlocks.push({ x: Math.floor(Math.random() * (700 - blockW)) + 50, y: Math.floor(Math.random() * 250) + 200, w: blockW, h: blockH });
     }
-  } else if (blockType === "smashing-stegosaurus.png") {
-    stegoTimer = currentTime + 10000;
-  } else if (blockType === "sneaky-t-rex.png") {
-    trexTimer = currentTime + 4000;
-  } else if (blockType === "treading-triceratops.png") {
-    triceratopsTimer = currentTime + 6000;
-    triceratopsDrift = Math.random() < 0.5 ? -3.5 : 3.5;
-  } else if (blockType === "charging-gorilla.png") {
+  } else if (blockType === "shatter") {
+    shatterTimer = currentTime + 10000;
+  } else if (blockType === "cloak") {
+    cloakTimer = currentTime + 4000;
+  } else if (blockType === "drift") {
+    driftTimer = currentTime + 6000;
+    paddleDrift = Math.random() < 0.5 ? -3.0 : 3.0; 
+  } else if (blockType === "bomb") {
     const smashRect = { x: blockRect.x - (blockW + 10), y: blockRect.y - (blockH + 10), w: blockRect.w + (blockW + 10)*2, h: blockRect.h + (blockH + 10)*2 };
     blocks = blocks.filter(b => {
       if (rectsIntersect(b.rect, smashRect)) { 
@@ -685,10 +740,10 @@ function processPowerup(blockType, currentTime, blockRect) {
       }
       return true;
     });
-  } else if (blockType === "heavy-pumpkin.png") {
-    pumpkinTimer = currentTime + 10000;
-  } else if (blockType === "stampeding-elephant.png") {
-    elephantMsgTimer = currentTime + 3000;
+  } else if (blockType === "quake") {
+    quakeTimer = currentTime + 10000;
+  } else if (blockType === "multiball") {
+    multiBallMsgTimer = currentTime + 3000;
     let mult = 1 - (ballSpeedLevel * 0.1);
     for (let i = 0; i < 3; i++) {
       extraBalls.push({
@@ -713,12 +768,12 @@ function checkLevelClear(currentTime) {
     ballSize = 20; ballSurface = createBallCanvas(ballSize);
     cloakedBallSurface = createCloakedBallCanvas(ballSize);
     ball.w = ballSize; ball.h = ballSize;
-    tomatoTimer = 0; raccoonTimer = 0; bulldogTimer = 0; stegoTimer = 0; trexTimer = 0; triceratopsTimer = 0; pumpkinTimer = 0;
+    shieldTimer = 0; invertTimer = 0; dirtTimer = 0; shatterTimer = 0; cloakTimer = 0; driftTimer = 0; quakeTimer = 0; megaBallTimer = 0;
     dirtBlocks = []; extraBalls = [];
     ball.x = paddle.x + paddle.w / 2 - ballSize / 2; ball.y = paddle.y - ballSize - 5;
     let mult = 1 - (ballSpeedLevel * 0.1);
     ball.dy = -BASE_BALL_SPEED * mult; ball.dx = BASE_BALL_SPEED * mult;
-    activeMissiles = []; lastDropTime = currentTime;
+    paddleDriftOffset = 0; activeMissiles = []; lastDropTime = currentTime;
   }
 }
 
@@ -752,8 +807,35 @@ function handleBlockCollision(bBall, blockList, currentTime) {
       hit.hp -= 1;
       addScore(2, currentTime);
       
-      if (hit.hp <= 0) {
-        blockList.splice(i, 1);
+      const hitCenter = { x: hit.rect.x + hit.rect.w/2, y: hit.rect.y + hit.rect.h/2 };
+      let checkClear = false;
+      
+      for (let j = blockList.length - 1; j >= 0; j--) {
+        if (blockList[j] === hit) continue;
+        const other = blockList[j];
+        const otherCenter = { x: other.rect.x + other.rect.w/2, y: other.rect.y + other.rect.h/2 };
+        const dist = Math.hypot(hitCenter.x - otherCenter.x, hitCenter.y - otherCenter.y);
+        
+        if (dist < 55) { 
+          if (other.hp !== 'steel') {
+            other.hp -= 1;
+            if (other.hp <= 0) {
+              const dead = blockList.splice(j, 1)[0];
+              destroyBlockVisuals(dead, currentTime);
+              if (dead.is_powerup) processPowerup(dead.type, currentTime, dead.rect);
+              else addScore(10, currentTime);
+              checkClear = true;
+            } else {
+              other.image = getBlockImage(other.hp);
+              spawnHitParticles(other);
+            }
+          }
+        }
+      }
+
+      const hitIdx = blockList.indexOf(hit);
+      if (hit.hp <= 0 && hitIdx > -1) {
+        blockList.splice(hitIdx, 1);
         destroyBlockVisuals(hit, currentTime);
         if (hit.is_powerup) {
           processPowerup(hit.type, currentTime, hit.rect);
@@ -761,12 +843,14 @@ function handleBlockCollision(bBall, blockList, currentTime) {
           playBounceSound();
           addScore(10, currentTime);
         }
-        checkLevelClear(currentTime);
-      } else {
+        checkClear = true;
+      } else if (hit.hp > 0) {
         playBounceSound();
         spawnHitParticles(hit);
         if (!hit.is_powerup) hit.image = getBlockImage(hit.hp);
       }
+      
+      if (checkClear) checkLevelClear(currentTime);
       
       return true;
     }
@@ -785,7 +869,7 @@ function getCanvasCoords(clientX, clientY) {
 function updateInputPosition(clientX, clientY, currentTime) {
   const coords = getCanvasCoords(clientX, clientY);
   mouseX = coords.x; mouseY = coords.y;
-  const controlsInverted = currentTime < raccoonTimer;
+  const controlsInverted = currentTime < invertTimer;
   let intendedX = coords.x - paddle.w / 2;
   if (controlsInverted) intendedX = (800 - coords.x) - paddle.w / 2;
   inputX = Math.max(0, Math.min(800 - paddle.w, intendedX));
@@ -812,21 +896,24 @@ canvas.addEventListener("touchstart", e => {
   if (gameState === "START_SCREEN") {
     if (mouseX >= 300 && mouseX <= 500 && mouseY >= 115 && mouseY <= 170) startNewGame();
   } else if (gameState === "PAUSED") {
-    let shopY = 170;
+    let shopY = 130;
     const items = getShopItems();
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
       const lvl = item.level;
       const cost = item.isConsumable ? item.costs[0] : (lvl < item.maxLevel ? item.costs[lvl] : null);
       
-      if (mouseX >= 650 && mouseX <= 730 && mouseY >= shopY + 12 && mouseY <= shopY + 52) {
+      if (mouseX >= 580 && mouseX <= 780 && mouseY >= shopY && mouseY <= shopY + 65) {
         let canBuy = cost !== null && score >= cost;
-        if (item.id === 'score_surge' && currentTime < scoreMultiplierTimer) canBuy = false;
+        if (item.id === 'score_surge' && pauseStartTime < scoreMultiplierTimer) canBuy = false;
         
         if (canBuy) {
           score -= cost;
-          item.action(currentTime);
+          item.action(pauseStartTime); // Use paused time base
           playPowerupSound();
+        } else {
+          shopRejectIdx = i;
+          shopRejectTimer = currentTime + 300;
         }
       }
       shopY += 70;
@@ -876,37 +963,72 @@ window.addEventListener("keydown", e => {
 window.addEventListener("keyup", e => { keys[e.code] = false; });
 
 canvas.addEventListener("mousemove", e => {
+  const currentTime = performance.now();
   if (gameState === "PLAYING") {
      isInteracting = true;
-     updateInputPosition(e.clientX, e.clientY, performance.now());
+     updateInputPosition(e.clientX, e.clientY, currentTime);
+     canvas.style.cursor = "crosshair";
   } else {
     const coords = getCanvasCoords(e.clientX, e.clientY);
     mouseX = coords.x; mouseY = coords.y;
+    
+    if (gameState === "PAUSED") {
+      let hoveredBtn = false;
+      let canAffordHover = false;
+      let shopY = 130;
+      const items = getShopItems();
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (mouseX >= 580 && mouseX <= 780 && mouseY >= shopY && mouseY <= shopY + 65) {
+          hoveredBtn = true;
+          const lvl = item.level;
+          const cost = item.isConsumable ? item.costs[0] : (lvl < item.maxLevel ? item.costs[lvl] : null);
+          let canBuy = cost !== null && score >= cost;
+          if (item.id === 'score_surge' && pauseStartTime < scoreMultiplierTimer) canBuy = false;
+          if (canBuy) canAffordHover = true;
+        }
+        shopY += 70;
+      }
+      if (hoveredBtn) {
+        canvas.style.cursor = canAffordHover ? "pointer" : "not-allowed";
+      } else {
+        canvas.style.cursor = "default";
+      }
+    } else {
+      canvas.style.cursor = "default";
+    }
   }
 });
 
 canvas.addEventListener("mousedown", e => {
   if (audioCtx.state === 'suspended') audioCtx.resume();
   const currentTime = performance.now();
+  
+  const coords = getCanvasCoords(e.clientX, e.clientY);
+  mouseX = coords.x; mouseY = coords.y;
+
   if (e.button === 0) {
     if (gameState === "START_SCREEN") {
       if (mouseX >= 300 && mouseX <= 500 && mouseY >= 115 && mouseY <= 170) startNewGame();
     } else if (gameState === "PAUSED") {
-      let shopY = 170;
+      let shopY = 130;
       const items = getShopItems();
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
         const lvl = item.level;
         const cost = item.isConsumable ? item.costs[0] : (lvl < item.maxLevel ? item.costs[lvl] : null);
         
-        if (mouseX >= 650 && mouseX <= 730 && mouseY >= shopY + 12 && mouseY <= shopY + 52) {
+        if (mouseX >= 580 && mouseX <= 780 && mouseY >= shopY && mouseY <= shopY + 65) {
           let canBuy = cost !== null && score >= cost;
-          if (item.id === 'score_surge' && currentTime < scoreMultiplierTimer) canBuy = false;
+          if (item.id === 'score_surge' && pauseStartTime < scoreMultiplierTimer) canBuy = false;
           
           if (canBuy) {
             score -= cost;
-            item.action(currentTime);
+            item.action(pauseStartTime); // Use paused time base
             playPowerupSound();
+          } else {
+            shopRejectIdx = i;
+            shopRejectTimer = currentTime + 300;
           }
         }
         shopY += 70;
@@ -922,7 +1044,7 @@ canvas.addEventListener("mousedown", e => {
         }
       }
     } else if (gameState === "PLAYING") {
-      if (sharkMissiles > 0) fireMissile();
+      if (missileCount > 0) fireMissile();
     }
   }
 });
@@ -973,10 +1095,10 @@ function update(currentTime) {
       let steelChance = Math.max(0, Math.min(0.25, (currentWave - 5) * 0.02));
 
       for (let col = 0; col < 16; col++) {
-        const rect = { x: col * (blockW + 5) + 24, y: 50, w: blockW, h: blockH };
+        const rect = { x: col * (blockW + 5) + 24, y: 65, w: blockW, h: blockH };
         if (rowSpecialCols.has(col)) {
-          const critter = getRandomCritter(0);
-          blocks.push({ rect, is_powerup: true, type: critter.name, color: critter.color, hp: 1 });
+          const powerup = getRandomPowerup(0);
+          blocks.push({ rect, is_powerup: true, type: powerup.name, color: powerup.color, hp: 1 });
         } else if (Math.random() < steelChance) {
           blocks.push({ rect, is_powerup: false, type: 'steel', hp: 'steel', image: getBlockImage('steel') });
         } else {
@@ -988,7 +1110,7 @@ function update(currentTime) {
   }
 
   const currentSpeed = ((keys["ShiftLeft"] || keys["ShiftRight"]) ? basePaddleSpeed * 1.8 : basePaddleSpeed) * dt;
-  const controlsInverted = currentTime < raccoonTimer;
+  const controlsInverted = currentTime < invertTimer;
   
   const pressingLeft = keys["ArrowLeft"] || keys["KeyA"];
   const pressingRight = keys["ArrowRight"] || keys["KeyD"];
@@ -996,19 +1118,25 @@ function update(currentTime) {
   const leftKey = controlsInverted ? pressingRight : pressingLeft;
   const rightKey = controlsInverted ? pressingLeft : pressingRight;
 
+  if (currentTime < driftTimer) {
+      paddleDriftOffset += paddleDrift * dt;
+  } else {
+      paddleDriftOffset *= 0.9; 
+  }
+
   if (isInteracting) {
-    paddle.x += (inputX - paddle.x) * Math.min(1.0, 0.3 * dt);
+    let targetX = inputX + paddleDriftOffset;
+    paddle.x += (targetX - paddle.x) * Math.min(1.0, 0.3 * dt);
   } else {
     if (leftKey) paddle.x -= currentSpeed;
     if (rightKey) paddle.x += currentSpeed;
+    if (currentTime < driftTimer) paddle.x += paddleDrift * dt;
   }
   
-  if (currentTime < triceratopsTimer) paddle.x += triceratopsDrift * dt;
-  if (paddle.x < 0) paddle.x = 0;
-  if (paddle.x + paddle.w > 800) paddle.x = 800 - paddle.w;
+  paddle.x = Math.max(0, Math.min(800 - paddle.w, paddle.x));
 
-  if (tomatoTimer > 0 && currentTime > tomatoTimer) {
-    tomatoTimer = 0; ballSize = 20;
+  if (megaBallTimer > 0 && currentTime > megaBallTimer) {
+    megaBallTimer = 0; ballSize = 20;
     const cx = ball.x + ball.w / 2; const cy = ball.y + ball.h / 2;
     ball.w = ballSize; ball.h = ballSize;
     ball.x = cx - ballSize / 2; ball.y = cy - ballSize / 2;
@@ -1021,16 +1149,15 @@ function update(currentTime) {
     cloakedBallSurface = createCloakedBallCanvas(ballSize);
   }
 
-  if (bulldogTimer > 0 && currentTime > bulldogTimer) { bulldogTimer = 0; dirtBlocks = []; }
+  if (dirtTimer > 0 && currentTime > dirtTimer) { dirtTimer = 0; dirtBlocks = []; }
 
-  const isWalrusActive = currentTime < walrusTimer;
-  const isStegoActive = currentTime < stegoTimer;
+  const isShieldActive = currentTime < shieldTimer;
+  const isShatterActive = currentTime < shatterTimer;
   const paddleHitboxes = [];
-  if (isWalrusActive) paddleHitboxes.push({ x: paddle.x + paddle.w / 2 - 100, y: paddle.y - 10, w: 200, h: 30 });
-  else if (isStegoActive) {
-    paddleHitboxes.push({ x: paddle.x, y: paddle.y, w: 16, h: 15 });
-    paddleHitboxes.push({ x: paddle.x + paddle.w / 2 - 8, y: paddle.y, w: 16, h: 15 });
-    paddleHitboxes.push({ x: paddle.x + paddle.w - 16, y: paddle.y, w: 16, h: 15 });
+  if (isShieldActive) paddleHitboxes.push({ x: paddle.x + paddle.w / 2 - 100, y: paddle.y - 10, w: 200, h: 30 });
+  else if (isShatterActive) {
+    paddleHitboxes.push({ x: paddle.x, y: paddle.y, w: 35, h: 15 });
+    paddleHitboxes.push({ x: paddle.x + 65, y: paddle.y, w: 35, h: 15 });
   } else paddleHitboxes.push(paddle);
 
   activeMissiles = activeMissiles.filter(m => {
@@ -1041,7 +1168,7 @@ function update(currentTime) {
       if (rectsIntersect(m, blocks[i].rect)) {
         const hit = blocks[i];
         if (hit.hp === 'steel') {
-            hit.hp = 0; // Missiles instakill steel
+            hit.hp = 0; 
         } else {
             hit.hp -= 1;
         }
@@ -1095,8 +1222,8 @@ function update(currentTime) {
       ball.x = paddle.x + paddle.w / 2 - ballSize / 2; ball.y = paddle.y - ballSize - 5;
       let mult = 1 - (ballSpeedLevel * 0.1);
       ball.dy = -BASE_BALL_SPEED * mult; ball.dx = BASE_BALL_SPEED * mult;
-      tomatoTimer = 0; raccoonTimer = 0; bulldogTimer = 0; stegoTimer = 0; trexTimer = 0;
-      triceratopsTimer = 0; pumpkinTimer = 0; dirtBlocks = []; extraBalls = []; ballTrail = [];
+      shieldTimer = 0; invertTimer = 0; dirtTimer = 0; shatterTimer = 0; cloakTimer = 0; driftTimer = 0; quakeTimer = 0; megaBallTimer = 0;
+      paddleDriftOffset = 0; dirtBlocks = []; extraBalls = []; ballTrail = [];
       if (lives <= 0) { gameState = "GAME_OVER"; gameOverReason = "GAME OVER"; gameOverY = -120; } 
       else lastDropTime = currentTime;
     }
@@ -1109,7 +1236,7 @@ function update(currentTime) {
       ball.dx = Math.max(-5.5 * mult, Math.min(5.5 * mult, hitPos * 5.2 * mult));
       ball.dy = -Math.abs(ball.dy);
       playBounceSound();
-      if (currentTime < pumpkinTimer) {
+      if (currentTime < quakeTimer) {
         shakeTimer = currentTime + 300; let destroyed = 0;
         while (destroyed < 3 && blocks.length > 0) {
           const target = blocks.splice(Math.floor(Math.random() * blocks.length), 1)[0];
@@ -1136,15 +1263,24 @@ function update(currentTime) {
     eBall.trail.push({ x: eBall.rect.x + eBall.rect.w / 2, y: eBall.rect.y + eBall.rect.h / 2 });
     if (eBall.trail.length > 8) eBall.trail.shift();
 
-    if (Math.abs(eBall.dy) < minSpeed) eBall.dy = eBall.dy < 0 ? -minSpeed : minSpeed;
+    if (Math.abs(eBall.dy) < minSpeed) {
+      eBall.dy = eBall.dy < 0 ? -minSpeed : minSpeed;
+    }
 
     eBall.rect.x += eBall.dx * dt; eBall.rect.y += eBall.dy * dt;
     eBall.angle -= 0.06 * dt;
 
     if (eBall.rect.x <= 0) { 
-      eBall.rect.x = 0; eBall.dx = Math.abs(eBall.dx); playBounceSound(); leftWallHitTime = currentTime;
-    } else if (eBall.rect.x + eBall.rect.w >= 800) { 
-      eBall.rect.x = 800 - eBall.rect.w; eBall.dx = -Math.abs(eBall.dx); playBounceSound(); rightWallHitTime = currentTime;
+      eBall.rect.x = 0; 
+      eBall.dx = Math.abs(eBall.dx); 
+      playBounceSound(); 
+      leftWallHitTime = currentTime;
+    } 
+    else if (eBall.rect.x + eBall.rect.w >= 800) { 
+      eBall.rect.x = 800 - eBall.rect.w; 
+      eBall.dx = -Math.abs(eBall.dx); 
+      playBounceSound(); 
+      rightWallHitTime = currentTime;
     }
     if (eBall.rect.y <= 0) { eBall.rect.y = 0; eBall.dy = Math.abs(eBall.dy); playBounceSound(); }
     if (eBall.rect.y + eBall.rect.h >= 600) return false;
@@ -1156,7 +1292,7 @@ function update(currentTime) {
         eBall.dx = Math.max(-5.5 * mult, Math.min(5.5 * mult, hitPos * 5.2 * mult));
         eBall.dy = -Math.abs(eBall.dy);
         playBounceSound();
-        if (currentTime < pumpkinTimer) {
+        if (currentTime < quakeTimer) {
           shakeTimer = currentTime + 300; let destroyed = 0;
           while (destroyed < 3 && blocks.length > 0) {
             const target = blocks.splice(Math.floor(Math.random() * blocks.length), 1)[0];
@@ -1175,31 +1311,36 @@ function update(currentTime) {
 
     const exBall = { x: eBall.rect.x, y: eBall.rect.y, w: eBall.rect.w, h: eBall.rect.h, dx: eBall.dx, dy: eBall.dy };
     if (handleBlockCollision(exBall, blocks, currentTime)) {
-      eBall.dx = exBall.dx; eBall.dy = exBall.dy;
+      eBall.dx = exBall.dx;
+      eBall.dy = exBall.dy;
     }
+
     return true;
   });
 }
 
 // --- RENDER FUNCTION ---
 function render(currentTime) {
-  if (sharkMissiles > 0 && gameState === "PLAYING") {
-    missileBtn.style.display = "flex"; missileBtn.innerText = `FIRE 🚀 (${sharkMissiles})`;
+  if (missileCount > 0 && gameState === "PLAYING") {
+    missileBtn.style.display = "flex"; missileBtn.innerText = `FIRE 🚀 (${missileCount})`;
   } else { missileBtn.style.display = "none"; }
 
   if (gameState === "START_SCREEN") {
     pauseBtn.style.display = "none";
-    ctx.fillStyle = "rgb(20, 22, 32)"; ctx.fillRect(0, 0, 800, 600);
+    drawBackground(currentTime);
     
-    stars.forEach(s => { ctx.fillStyle = s.color; ctx.fillRect(s.x, s.y, s.size, s.size); });
+    stars.forEach(s => {
+      ctx.fillStyle = s.color;
+      ctx.fillRect(s.x, s.y, s.size, s.size);
+    });
 
     const boxX = 35, boxY = 20, boxW = 730, boxH = 560;
-    ctx.fillStyle = "rgb(28, 32, 48)"; ctx.fillRect(boxX, boxY, boxW, boxH);
+    ctx.fillStyle = "rgba(28, 32, 48, 0.85)"; ctx.fillRect(boxX, boxY, boxW, boxH);
     ctx.strokeStyle = "rgb(100, 200, 255)"; ctx.lineWidth = 3; ctx.strokeRect(boxX, boxY, boxW, boxH);
     ctx.strokeStyle = "rgb(40, 90, 140)"; ctx.lineWidth = 2; ctx.strokeRect(boxX + 4, boxY + 4, boxW - 8, boxH - 8);
 
     ctx.fillStyle = "rgb(255, 205, 30)"; ctx.font = "bold 44px Impact"; ctx.textAlign = "center";
-    ctx.fillText("Corner Critters: 'Breakout'", 400, 70);
+    ctx.fillText("Arcade Breakout", 400, 70);
     ctx.fillStyle = "rgb(180, 215, 255)"; ctx.font = "16px Arial";
     ctx.fillText("An Arcade Brick-Breaker with Wild Power-ups & Hazards", 400, 96);
 
@@ -1221,7 +1362,7 @@ function render(currentTime) {
     ctx.fillText("• PC: Mouse/WASD/Arrows | Mobile: Drag on screen.", 70, 265);
 
     ctx.fillStyle = "rgb(120, 200, 255)"; ctx.font = "bold 17px Arial"; ctx.textAlign = "center";
-    ctx.fillText("CRITTER POWER-UPS & HAZARD GUIDE", 400, 298);
+    ctx.fillText("POWER-UPS & HAZARD GUIDE", 400, 298);
 
     const keysArr = Object.keys(iconDescriptions);
     keysArr.forEach((key, idx) => {
@@ -1250,9 +1391,12 @@ function render(currentTime) {
   if (currentTime < shakeTimer) { shakeX = Math.floor(Math.random() * 17) - 8; shakeY = Math.floor(Math.random() * 17) - 8; }
   ctx.save(); ctx.translate(shakeX, shakeY);
 
-  ctx.fillStyle = "rgb(30, 30, 30)"; ctx.fillRect(0, 0, 800, 600);
+  drawBackground(currentTime);
 
-  stars.forEach(s => { ctx.fillStyle = s.color; ctx.fillRect(s.x, s.y, s.size, s.size); });
+  stars.forEach(s => {
+    ctx.fillStyle = s.color;
+    ctx.fillRect(s.x, s.y, s.size, s.size);
+  });
 
   let leftGlow = Math.max(0, 1 - (currentTime - leftWallHitTime) / 300);
   let rightGlow = Math.max(0, 1 - (currentTime - rightWallHitTime) / 300);
@@ -1263,7 +1407,8 @@ function render(currentTime) {
     let lGrad = ctx.createLinearGradient(3, 0, 15, 0);
     lGrad.addColorStop(0, `rgba(100, 200, 255, ${leftGlow * 0.4})`);
     lGrad.addColorStop(1, `rgba(100, 200, 255, 0)`);
-    ctx.fillStyle = lGrad; ctx.fillRect(3, 0, 12, 600);
+    ctx.fillStyle = lGrad;
+    ctx.fillRect(3, 0, 12, 600);
   }
 
   ctx.fillStyle = `rgba(100, 200, 255, ${0.15 + rightGlow * 0.6})`;
@@ -1272,29 +1417,33 @@ function render(currentTime) {
     let rGrad = ctx.createLinearGradient(797, 0, 785, 0);
     rGrad.addColorStop(0, `rgba(100, 200, 255, ${rightGlow * 0.4})`);
     rGrad.addColorStop(1, `rgba(100, 200, 255, 0)`);
-    ctx.fillStyle = rGrad; ctx.fillRect(785, 0, 12, 600);
+    ctx.fillStyle = rGrad;
+    ctx.fillRect(785, 0, 12, 600);
   }
 
   if (gameState === "PLAYING" || gameState === "PAUSED") {
     ctx.fillStyle = "rgb(200, 200, 200)";
-    if (currentTime < stegoTimer) {
-      ctx.fillRect(paddle.x, paddle.y, 16, 15); ctx.fillRect(paddle.x + paddle.w / 2 - 8, paddle.y, 16, 15); ctx.fillRect(paddle.x + paddle.w - 16, paddle.y, 16, 15);
+    if (currentTime < shatterTimer) {
+      ctx.fillRect(paddle.x, paddle.y, 35, 15);
+      ctx.fillRect(paddle.x + 65, paddle.y, 35, 15);
     } else ctx.fillRect(paddle.x, paddle.y, paddle.w, paddle.h);
 
-    if (sharkMissiles > 0) {
+    if (missileCount > 0) {
       const spacing = 15;
-      const startX = paddle.x + paddle.w / 2 - ((sharkMissiles - 1) * spacing) / 2;
-      for (let i = 0; i < sharkMissiles; i++) {
+      const startX = paddle.x + paddle.w / 2 - ((missileCount - 1) * spacing) / 2;
+      for (let i = 0; i < missileCount; i++) {
         if (rocketImg.complete && rocketImg.naturalWidth !== 0) {
           ctx.drawImage(rocketImg, startX + (i * spacing) - 7, paddle.y - 24, 14, 28);
         } else {
-          ctx.fillStyle = "rgb(255, 100, 50)"; ctx.fillRect(startX + (i * spacing) - 2, paddle.y - 12, 4, 12);
-          ctx.fillStyle = "rgb(255, 200, 100)"; ctx.fillRect(startX + (i * spacing) - 1, paddle.y - 12 + 10, 2, 4); 
+          ctx.fillStyle = "rgb(255, 100, 50)";
+          ctx.fillRect(startX + (i * spacing) - 2, paddle.y - 12, 4, 12);
+          ctx.fillStyle = "rgb(255, 200, 100)";
+          ctx.fillRect(startX + (i * spacing) - 1, paddle.y - 12 + 10, 2, 4); 
         }
       }
     }
 
-    if (currentTime < walrusTimer) {
+    if (currentTime < shieldTimer) {
       const pulse = (175 + 80 * Math.sin(currentTime / 100.0)) / 255; ctx.save();
       ctx.fillStyle = `rgba(0, 255, 255, ${pulse})`; ctx.beginPath();
       ctx.ellipse(paddle.x + paddle.w / 2, paddle.y - 10 + 15, 100, 15, 0, 0, Math.PI * 2);
@@ -1305,11 +1454,12 @@ function render(currentTime) {
       if (rocketImg.complete && rocketImg.naturalWidth !== 0) {
         ctx.drawImage(rocketImg, m.x - 5, m.y - 6, 14, 28);
       } else {
-        ctx.fillStyle = "rgb(255, 100, 50)"; ctx.fillRect(m.x, m.y, m.w, m.h);
+        ctx.fillStyle = "rgb(255, 100, 50)";
+        ctx.fillRect(m.x, m.y, m.w, m.h);
       }
     });
 
-    const timeSinceDrop = currentTime - lastDropTime;
+    const timeSinceDrop = gameState === "PAUSED" ? (pauseStartTime - lastDropTime) : (currentTime - lastDropTime);
     const isBlinking = timeSinceDrop > (dropInterval - 3000) && gameState === "PLAYING";
     const blinkAlpha = isBlinking ? Math.abs(Math.sin(currentTime / 100.0)) * 0.4 : 0;
 
@@ -1317,9 +1467,13 @@ function render(currentTime) {
 
     blocks.forEach(b => {
       if (b.is_powerup) {
-        ctx.fillStyle = b.color; ctx.fillRect(b.rect.x, b.rect.y, b.rect.w, b.rect.h);
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.4)"; ctx.lineWidth = 2;
+        ctx.fillStyle = b.color;
+        ctx.fillRect(b.rect.x, b.rect.y, b.rect.w, b.rect.h);
+        
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
+        ctx.lineWidth = 2;
         ctx.strokeRect(b.rect.x + 2, b.rect.y + 2, b.rect.w - 4, b.rect.h - 4);
+        
         ctx.fillStyle = "rgba(255, 255, 255, 0.25)";
         ctx.fillRect(b.rect.x + b.rect.w/2 - 6, b.rect.y + b.rect.h/2 - 6, 12, 12);
       } else {
@@ -1327,16 +1481,19 @@ function render(currentTime) {
       }
 
       if (isBlinking) {
-        ctx.fillStyle = `rgba(255, 255, 255, ${blinkAlpha})`; ctx.fillRect(b.rect.x, b.rect.y, b.rect.w, b.rect.h);
+        ctx.fillStyle = `rgba(255, 255, 255, ${blinkAlpha})`;
+        ctx.fillRect(b.rect.x, b.rect.y, b.rect.w, b.rect.h);
       }
     });
 
     particles.forEach(p => {
-      ctx.globalAlpha = Math.max(0, p.life); ctx.fillStyle = p.color; ctx.fillRect(p.x, p.y, p.size, p.size);
+      ctx.globalAlpha = Math.max(0, p.life);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(p.x, p.y, p.size, p.size);
     });
     ctx.globalAlpha = 1.0;
 
-    if (currentTime >= trexTimer) {
+    if (currentTime >= cloakTimer) {
       ballTrail.forEach((pos, i) => {
         const radius = (ballSize / 2) * (i / ballTrail.length);
         const alpha = (i / ballTrail.length) * 0.7;
@@ -1348,12 +1505,16 @@ function render(currentTime) {
       ctx.save(); ctx.translate(ball.x + ball.w / 2, ball.y + ball.h / 2);
       ctx.rotate(ball.angle); ctx.drawImage(ballSurface, -ball.w / 2, -ball.h / 2); ctx.restore();
     } else {
-      ctx.save(); ctx.globalAlpha = 0.35; ctx.translate(ball.x + ball.w / 2, ball.y + ball.h / 2);
-      ctx.rotate(ball.angle); ctx.drawImage(cloakedBallSurface, -ball.w / 2, -ball.h / 2); ctx.restore();
+      ctx.save(); 
+      ctx.globalAlpha = 0.12;
+      ctx.translate(ball.x + ball.w / 2, ball.y + ball.h / 2);
+      ctx.rotate(ball.angle); 
+      ctx.drawImage(cloakedBallSurface, -ball.w / 2, -ball.h / 2); 
+      ctx.restore();
     }
 
     extraBalls.forEach(eBall => {
-      if (currentTime >= trexTimer) {
+      if (currentTime >= cloakTimer) {
         eBall.trail.forEach((pos, i) => {
           const radius = (ballSize / 2) * (i / eBall.trail.length);
           const alpha = (i / eBall.trail.length) * 0.7;
@@ -1365,8 +1526,12 @@ function render(currentTime) {
         ctx.save(); ctx.translate(eBall.rect.x + eBall.rect.w / 2, eBall.rect.y + eBall.rect.h / 2);
         ctx.rotate(eBall.angle); ctx.drawImage(ballSurface, -eBall.rect.w / 2, -eBall.rect.h / 2); ctx.restore();
       } else {
-        ctx.save(); ctx.globalAlpha = 0.35; ctx.translate(eBall.rect.x + eBall.rect.w / 2, eBall.rect.y + eBall.rect.h / 2);
-        ctx.rotate(eBall.angle); ctx.drawImage(cloakedBallSurface, -eBall.rect.w / 2, -eBall.rect.h / 2); ctx.restore();
+        ctx.save(); 
+        ctx.globalAlpha = 0.12;
+        ctx.translate(eBall.rect.x + eBall.rect.w / 2, eBall.rect.y + eBall.rect.h / 2);
+        ctx.rotate(eBall.angle); 
+        ctx.drawImage(cloakedBallSurface, -eBall.rect.w / 2, -eBall.rect.h / 2); 
+        ctx.restore();
       }
     });
 
@@ -1375,32 +1540,37 @@ function render(currentTime) {
     floatingTexts.forEach(ft => {
       ctx.globalAlpha = Math.max(0, ft.life);
       ctx.fillStyle = ft.color;
-      ctx.strokeStyle = `rgba(0, 0, 0, ${Math.max(0, ft.life)})`; ctx.lineWidth = 3;
-      ctx.strokeText(ft.text, ft.x, ft.y); ctx.fillText(ft.text, ft.x, ft.y);
+      ctx.strokeStyle = `rgba(0, 0, 0, ${Math.max(0, ft.life)})`;
+      ctx.lineWidth = 3;
+      ctx.strokeText(ft.text, ft.x, ft.y);
+      ctx.fillText(ft.text, ft.x, ft.y);
     });
     ctx.globalAlpha = 1.0;
-
-    // UI Overlay
-    ctx.fillStyle = "rgb(255, 255, 255)"; ctx.font = "bold 26px Arial"; ctx.textAlign = "left";
-    ctx.fillText(`Lives: ${lives}`, 20, 40);
-    ctx.textAlign = "center"; ctx.fillText(`WAVE: ${currentWave}`, 400, 40);
-    ctx.textAlign = "right"; ctx.fillText(`Score: ${score}`, 780, 40);
     
-    if (currentTime < scoreMultiplierTimer) {
-      let sec = Math.ceil((scoreMultiplierTimer - currentTime)/1000);
-      ctx.fillStyle = "rgb(255, 200, 100)"; ctx.font = "bold 18px Arial";
-      ctx.fillText(`[2x SURGE: ${sec}s]`, 780, 65);
+    // Check if score surge is active (uses different time check if paused)
+    let surgeActive = false;
+    let surgeRemaining = 0;
+    if (gameState === "PAUSED") {
+        if (pauseStartTime < scoreMultiplierTimer) {
+            surgeActive = true;
+            surgeRemaining = Math.ceil((scoreMultiplierTimer - pauseStartTime) / 1000);
+        }
+    } else {
+        if (currentTime < scoreMultiplierTimer) {
+            surgeActive = true;
+            surgeRemaining = Math.ceil((scoreMultiplierTimer - currentTime) / 1000);
+        }
     }
 
     const currentActive = [];
-    if (currentTime < walrusTimer) currentActive.push('walrus');
-    if (currentTime < tomatoTimer) currentActive.push('tomato');
-    if (currentTime < raccoonTimer) currentActive.push('raccoon');
-    if (currentTime < stegoTimer) currentActive.push('stego');
-    if (currentTime < trexTimer) currentActive.push('trex');
-    if (currentTime < triceratopsTimer) currentActive.push('triceratops');
-    if (currentTime < pumpkinTimer) currentActive.push('pumpkin');
-    if (sharkMissiles > 0) currentActive.push('shark');
+    if (currentTime < shieldTimer) currentActive.push('shield');
+    if (currentTime < megaBallTimer) currentActive.push('megaball');
+    if (currentTime < invertTimer) currentActive.push('invert');
+    if (currentTime < shatterTimer) currentActive.push('shatter');
+    if (currentTime < cloakTimer) currentActive.push('cloak');
+    if (currentTime < driftTimer) currentActive.push('drift');
+    if (currentTime < quakeTimer) currentActive.push('quake');
+    if (missileCount > 0) currentActive.push('missile');
 
     let iconX = 20, iconY = 60;
     Object.keys(iconFilenames).forEach(key => {
@@ -1414,9 +1584,9 @@ function render(currentTime) {
           ctx.save(); ctx.translate(iconX + 16, iconY + 16 + state.offset);
           ctx.rotate(state.angle); ctx.drawImage(statusIcons[key], -16, -16); ctx.restore();
         }
-        if (key === 'shark') {
+        if (key === 'missile') {
           ctx.fillStyle = "rgb(200, 200, 200)"; ctx.font = "16px Arial"; ctx.textAlign = "left";
-          ctx.fillText(`[1] x ${sharkMissiles}`, iconX + 40, iconY + 22 + state.offset);
+          ctx.fillText(`[1] x ${missileCount}`, iconX + 40, iconY + 22 + state.offset);
         }
         iconY += 36;
       } else iconAnimState[key].wasActive = false;
@@ -1424,61 +1594,62 @@ function render(currentTime) {
 
     let warningIndex = 0;
     if (currentTime < waveMsgTimer) {
-      drawWavyTextCentered(ctx, "WAVE CLEARED! (+SPEED)", 400, 90 + warningIndex * 36, currentTime, "rgb(150, 255, 150)");
+      drawWavyTextCentered(ctx, "WAVE CLEARED! (+SPEED)", 400, 110 + warningIndex * 36, currentTime, "rgb(150, 255, 150)");
       warningIndex++;
     }
 
     const standardWarnings = [];
-    if (currentTime < elephantMsgTimer) standardWarnings.push({ text: "THE HERD! (MULTI-BALL)", color: "rgb(50, 255, 255)" });
-    if (currentTime < pumpkinTimer) standardWarnings.push({ text: "SEISMIC PADDLE!", color: "rgb(255, 140, 0)" });
-    if (currentTime < raccoonTimer) standardWarnings.push({ text: "CONTROLS INVERTED!", color: "rgb(255, 50, 50)" });
-    if (currentTime < trexTimer) standardWarnings.push({ text: "BALL CLOAKED!", color: "rgb(100, 255, 100)" });
-    if (currentTime < triceratopsTimer) standardWarnings.push({ text: "STAMPEDE DRIFT!", color: "rgb(255, 150, 0)" });
+    if (currentTime < multiBallMsgTimer) standardWarnings.push({ text: "MULTI-BALL!", color: "rgb(50, 255, 255)" });
+    if (currentTime < quakeTimer) standardWarnings.push({ text: "SEISMIC PADDLE!", color: "rgb(255, 140, 0)" });
+    if (currentTime < invertTimer) standardWarnings.push({ text: "CONTROLS INVERTED!", color: "rgb(255, 50, 50)" });
+    if (currentTime < cloakTimer) standardWarnings.push({ text: "BALL CLOAKED!", color: "rgb(100, 255, 100)" });
+    if (currentTime < driftTimer) standardWarnings.push({ text: "MOMENTUM DRIFT!", color: "rgb(255, 150, 0)" });
 
     ctx.font = "bold 24px Arial"; ctx.textAlign = "center";
     standardWarnings.forEach((warn, idx) => { 
       ctx.fillStyle = warn.color; 
-      ctx.fillText(warn.text, 400, 90 + idx * 36); 
+      ctx.fillText(warn.text, 400, 110 + idx * 36); 
     });
 
     ctx.fillStyle = "rgb(150, 150, 150)"; ctx.font = "16px Arial"; ctx.textAlign = "center";
     ctx.fillText("Double Click/Tap for Fullscreen | SPACE: Pause", 400, 580);
 
+    // PAUSE MENU (Drawn slightly lower to allow Top HUD to remain entirely visible)
     if (gameState === "PAUSED") {
-      ctx.fillStyle = "rgba(15, 15, 25, 0.95)"; ctx.fillRect(0, 0, 800, 600);
-      const boxX = 30, boxY = 30, boxW = 740, boxH = 540;
-      ctx.fillStyle = "rgb(25, 28, 42)"; ctx.fillRect(boxX, boxY, boxW, boxH);
+      ctx.fillStyle = "rgba(15, 15, 25, 0.85)"; ctx.fillRect(0, 0, 800, 600);
+      const boxX = 30, boxY = 70, boxW = 740, boxH = 490;
+      ctx.fillStyle = "rgba(25, 28, 42, 0.95)"; ctx.fillRect(boxX, boxY, boxW, boxH);
       ctx.strokeStyle = "rgb(100, 200, 255)"; ctx.lineWidth = 3; ctx.strokeRect(boxX, boxY, boxW, boxH);
       ctx.strokeStyle = "rgb(40, 90, 140)"; ctx.lineWidth = 2; ctx.strokeRect(boxX + 4, boxY + 4, boxW - 8, boxH - 8);
 
-      ctx.fillStyle = "rgb(255, 200, 0)"; ctx.font = "bold 56px Impact"; ctx.textAlign = "center";
-      ctx.fillText("PAUSED", 400, 82);
+      ctx.fillStyle = "rgb(255, 200, 0)"; ctx.font = "bold 44px Impact"; ctx.textAlign = "center";
+      ctx.fillText("PAUSED", 400, 115);
       
       // LEFT COLUMN: GUIDE
-      ctx.fillStyle = "rgb(180, 215, 255)"; ctx.font = "bold 18px Arial"; ctx.textAlign = "center";
-      ctx.fillText("HAZARD & POWER-UP GUIDE", 230, 130);
+      ctx.fillStyle = "rgb(180, 215, 255)"; ctx.font = "bold 16px Arial"; ctx.textAlign = "center";
+      ctx.fillText("POWER-UPS & HAZARD GUIDE", 230, 150);
       
-      let startY = 160;
+      let startY = 175;
       Object.keys(iconDescriptions).forEach(key => {
         if (statusIcons[key]) {
-          ctx.drawImage(statusIcons[key], 50, startY);
-          ctx.fillStyle = "rgb(240, 240, 240)"; ctx.font = "12px Arial"; ctx.textAlign = "left";
-          ctx.fillText(iconDescriptions[key], 90, startY + 21);
+          ctx.drawImage(statusIcons[key], 45, startY);
+          ctx.fillStyle = "rgb(240, 240, 240)"; ctx.font = "11.5px Arial"; ctx.textAlign = "left";
+          ctx.fillText(iconDescriptions[key], 85, startY + 20);
         }
-        startY += 40;
+        startY += 38;
       });
 
       // RIGHT COLUMN: SHOP
-      ctx.fillStyle = "rgb(180, 215, 255)"; ctx.font = "bold 18px Arial"; ctx.textAlign = "center";
-      ctx.fillText("UPGRADE SHOP", 580, 130);
+      ctx.fillStyle = "rgb(180, 215, 255)"; ctx.font = "bold 16px Arial"; ctx.textAlign = "center";
+      ctx.fillText("UPGRADE SHOP", 580, 150);
       
       ctx.fillStyle = "rgb(255, 255, 255)"; ctx.font = "16px Arial";
-      ctx.fillText(`Available Points: ${score}`, 580, 155);
+      ctx.fillText(`Available Points: ${Math.floor(score)}`, 580, 175);
 
-      let shopY = 170;
+      let shopY = 190;
       const items = getShopItems();
       
-      items.forEach(item => {
+      items.forEach((item, idx) => {
         ctx.fillStyle = "rgb(40, 45, 60)";
         roundRect(ctx, 410, shopY, 330, 65, 8, true, false);
         ctx.strokeStyle = "rgb(100, 150, 255)"; ctx.lineWidth = 2;
@@ -1492,8 +1663,15 @@ function render(currentTime) {
         let desc = item.descs[Math.min(lvl, item.descs.length - 1)];
         let btnText = "BUY";
         let btnColor = "rgb(100, 100, 100)";
+        let btnOffsetX = 0;
         
-        if (item.id === 'score_surge' && currentTime < scoreMultiplierTimer) {
+        // Rejection Shake Animation
+        if (shopRejectIdx === idx && currentTime < shopRejectTimer) {
+            btnOffsetX = Math.sin(currentTime / 20) * 4;
+            btnColor = "rgb(200, 50, 50)";
+        }
+        
+        if (item.id === 'score_surge' && surgeActive) {
            cost = "ACTIVE";
            btnText = "ON";
            btnColor = "rgb(100, 200, 255)";
@@ -1502,7 +1680,7 @@ function render(currentTime) {
            btnColor = "rgb(80, 80, 80)";
         } else if (score >= cost) {
            btnColor = "rgb(100, 200, 100)";
-           let isHover = gameState === "PAUSED" && mouseX >= 650 && mouseX <= 730 && mouseY >= shopY + 12 && mouseY <= shopY + 52;
+           let isHover = mouseX >= 580 && mouseX <= 780 && mouseY >= shopY && mouseY <= shopY + 65;
            if (isHover) btnColor = "rgb(150, 255, 150)";
         }
         
@@ -1513,21 +1691,48 @@ function render(currentTime) {
         if (typeof cost === 'number') {
            ctx.fillText(`Cost: ${cost} pts`, 425, shopY + 56);
         } else if (cost === "ACTIVE") {
-           let sec = Math.ceil((scoreMultiplierTimer - currentTime)/1000);
-           ctx.fillText(`Active: ${sec}s`, 425, shopY + 56);
+           ctx.fillText(`Active: ${surgeRemaining}s`, 425, shopY + 56);
         }
         
         ctx.fillStyle = btnColor;
-        roundRect(ctx, 650, shopY + 12, 80, 40, 4, true, false);
+        roundRect(ctx, 650 + btnOffsetX, shopY + 12, 80, 40, 4, true, false);
         ctx.fillStyle = "rgb(0, 0, 0)"; ctx.font = "bold 14px Arial"; ctx.textAlign = "center";
-        ctx.fillText(btnText, 690, shopY + 37);
+        ctx.fillText(btnText, 690 + btnOffsetX, shopY + 37);
         
         shopY += 70;
       });
-
       ctx.fillStyle = "rgb(100, 255, 100)"; ctx.font = "bold 18px Arial"; ctx.textAlign = "center";
-      ctx.fillText("Press SPACE / Resume Button", 400, 555);
+      ctx.fillText("Press SPACE / Resume Button to close", 400, 545);
     }
+    
+    // VISUAL DROP TIMER CALCULATION
+    let timeLeftMs = Math.max(0, dropInterval - timeSinceDrop);
+    let secondsLeft = (timeLeftMs / 1000).toFixed(1);
+    let dropRatio = Math.max(0, Math.min(1, timeSinceDrop / dropInterval));
+    
+    // PROGRESS BAR UI AT TOP (Drawn on top of pause menu)
+    ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+    ctx.fillRect(0, 0, 800, 6);
+    let barWidth = 800 * (1 - dropRatio);
+    ctx.fillStyle = secondsLeft <= 5.0 ? "rgb(255, 50, 50)" : "rgb(100, 200, 255)";
+    ctx.fillRect(0, 0, barWidth, 6);
+
+    // TEXT HUD AT TOP
+    ctx.fillStyle = "rgb(255, 255, 255)"; ctx.font = "bold 26px Arial"; ctx.textAlign = "left";
+    ctx.fillText(`Lives: ${lives}`, 20, 38);
+    ctx.textAlign = "center"; ctx.fillText(`WAVE: ${currentWave}`, 400, 34);
+    ctx.textAlign = "right"; ctx.fillText(`Score: ${Math.floor(score)}`, 780, 38);
+    
+    ctx.font = "bold 16px Arial";
+    ctx.textAlign = "center";
+    ctx.fillStyle = secondsLeft <= 5.0 ? "rgb(255, 100, 100)" : "rgb(150, 200, 255)";
+    ctx.fillText(`Next Drop: ${secondsLeft}s`, 400, 56);
+    
+    if (surgeActive) {
+      ctx.fillStyle = "rgb(255, 200, 100)"; ctx.font = "bold 18px Arial"; ctx.textAlign = "right";
+      ctx.fillText(`[2x SURGE: ${surgeRemaining}s]`, 780, 62);
+    }
+
   } else if (gameState === "GAME_OVER") {
     pauseBtn.style.display = "none";
     if (gameOverY < 150) gameOverY += 5;
@@ -1538,12 +1743,12 @@ function render(currentTime) {
       if (showingHelp) {
         ctx.fillStyle = "rgba(15, 15, 25, 0.95)"; ctx.fillRect(0, 0, 800, 600);
         const boxX = 70, boxY = 30, boxW = 660, boxH = 540;
-        ctx.fillStyle = "rgb(25, 28, 42)"; ctx.fillRect(boxX, boxY, boxW, boxH);
+        ctx.fillStyle = "rgba(25, 28, 42, 0.95)"; ctx.fillRect(boxX, boxY, boxW, boxH);
         ctx.strokeStyle = "rgb(100, 200, 255)"; ctx.lineWidth = 3; ctx.strokeRect(boxX, boxY, boxW, boxH);
         ctx.strokeStyle = "rgb(40, 90, 140)"; ctx.lineWidth = 2; ctx.strokeRect(boxX + 4, boxY + 4, boxW - 8, boxH - 8);
 
         ctx.fillStyle = "rgb(255, 200, 0)"; ctx.font = "bold 46px Impact"; ctx.textAlign = "center";
-        ctx.fillText("HAZARD & POWER-UP GUIDE", 400, 85);
+        ctx.fillText("POWER-UPS & HAZARD GUIDE", 400, 85);
         
         let startY = 120;
         Object.keys(iconDescriptions).forEach(key => {
